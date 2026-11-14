@@ -1,0 +1,3465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VICE BEACH 3D - Open World Miami</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Righteous&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #64b5f6;
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        #game-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .vice-font {
+            font-family: 'Righteous', cursive;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.35), 2px 2px 0px #ff2a85;
+        }
+        .neon-box {
+            background: rgba(15, 23, 42, 0.78);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+        }
+        .neon-cyan-border {
+            border: 2px solid #38bdf8;
+            box-shadow: 0 4px 20px rgba(56, 189, 248, 0.4);
+        }
+        #minimap-canvas {
+            border-radius: 9999px;
+            background: #0ea5e9;
+        }
+        @keyframes pulseGlow {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.04); opacity: 0.92; }
+        }
+        .pulse-prompt {
+            animation: pulseGlow 1.5s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="relative">
+
+    <!-- 3D WebGL Canvas -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- HUD OVERLAY -->
+    <div id="hud" class="pointer-events-none fixed inset-0 flex flex-col justify-between p-4 sm:p-6 z-10">
+        
+        <!-- Top Bar: Title, Wanted Stars, District & Time -->
+        <div class="flex justify-between items-start gap-4">
+            <!-- Top Left: Minimap & District -->
+            <div class="flex items-center gap-4">
+                <div class="relative w-32 h-32 sm:w-40 sm:h-40 rounded-full neon-cyan-border p-1 bg-slate-900/80 shadow-2xl">
+                    <canvas id="minimap-canvas" width="160" height="160" class="w-full h-full"></canvas>
+                    <div class="absolute top-1 left-1/2 -translate-x-1/2 text-[10px] font-bold text-sky-300 bg-slate-900/90 px-1.5 rounded">N</div>
+                </div>
+                <div class="neon-box px-4 py-2.5 rounded-xl hidden sm:block">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs uppercase tracking-widest text-sky-400 font-bold">Current District</span>
+                        <span id="fps-counter" class="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-mono">60 FPS</span>
+                    </div>
+                    <div id="district-name" class="text-lg font-extrabold text-white tracking-wide">Ocean Drive Beachfront</div>
+                    <div id="time-display" class="text-xs text-amber-300 font-semibold mt-0.5">14:30 • Sunny Miami Afternoon (84°F)</div>
+                </div>
+            </div>
+
+            <!-- Top Right: Logo, Cash, Heat Stars & Wardrobe Trigger -->
+            <div class="flex flex-col items-end gap-2">
+                <div class="vice-font text-2xl sm:text-4xl text-white tracking-wider">VICE BEACH <span class="text-sky-400">HD</span></div>
+                <div class="neon-box px-4 py-2 rounded-xl flex flex-col items-end">
+                    <div class="flex items-center gap-1.5" id="stars-container">
+                        <span class="star text-xl text-slate-600">★</span>
+                        <span class="star text-xl text-slate-600">★</span>
+                        <span class="star text-xl text-slate-600">★</span>
+                        <span class="star text-xl text-slate-600">★</span>
+                        <span class="star text-xl text-slate-600">★</span>
+                    </div>
+                    <div id="cash-display" class="text-emerald-400 font-extrabold text-lg tracking-wider">$12,500</div>
+                    <div id="status-mode" class="text-xs font-semibold text-sky-300 uppercase tracking-wider">On Foot • Exploring</div>
+                </div>
+                <button id="open-wardrobe-btn" class="pointer-events-auto neon-box px-3.5 py-1.5 rounded-lg text-xs font-bold text-amber-300 hover:text-white hover:border-amber-400 transition flex items-center gap-1.5 shadow-md">
+                    <span>👕</span> Customize Character (C)
+                </button>
+            </div>
+        </div>
+
+        <!-- Center Interaction Prompt & Toast Notifications -->
+        <div class="flex flex-col items-center justify-center gap-2 my-auto">
+            <div id="toast-banner" class="hidden neon-box px-6 py-2 rounded-full text-amber-300 font-bold text-sm tracking-wide shadow-lg transition-opacity duration-300"></div>
+            <div id="interact-prompt" class="hidden pulse-prompt neon-box px-5 py-2.5 rounded-xl text-white font-bold text-sm sm:text-base border-sky-400 shadow-lg">
+                Press <span class="bg-pink-600 text-white px-2 py-0.5 rounded mx-1 font-extrabold">E</span> to Enter <span id="prompt-veh-name" class="text-sky-300">Supercar</span>
+            </div>
+        </div>
+
+        <!-- Bottom Bar: Controls Guide & Speedometer -->
+        <div class="flex justify-between items-end gap-4">
+            <!-- Controls Card -->
+            <div class="neon-box p-3 sm:p-4 rounded-xl text-xs sm:text-sm text-slate-200 max-w-md pointer-events-auto">
+                <div class="font-bold text-sky-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                    <span>Controls & Keybinds</span>
+                    <span class="text-[11px] text-amber-300">Click View to Lock Mouse</span>
+                </div>
+                <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                    <div><span class="font-bold text-sky-300">W A S D</span> : Walk / Drive</div>
+                    <div><span class="font-bold text-sky-300">SHIFT</span> : Sprint / Nitro</div>
+                    <div><span class="font-bold text-sky-300">SPACE</span> : Jump / Handbrake</div>
+                    <div><span class="font-bold text-sky-300">E</span> : Enter / Exit Vehicle</div>
+                    <div><span class="font-bold text-sky-300">H</span> : Vehicle Horn</div>
+                    <div><span class="font-bold text-sky-300">C</span> : Character Wardrobe</div>
+                </div>
+                <!-- Camera Mouse Sensitivity Slider -->
+                <div class="mt-2 pt-2 border-t border-white/15 flex items-center justify-between gap-3 text-xs">
+                    <label for="sens-slider" class="font-semibold text-sky-300 whitespace-nowrap">360° Cam Sens:</label>
+                    <input id="sens-slider" type="range" min="0.3" max="2.5" step="0.1" value="1.0" class="w-full accent-sky-400 cursor-pointer h-1.5 bg-slate-700 rounded-lg">
+                    <span id="sens-value" class="font-mono text-[11px] text-amber-300 w-8 text-right">1.0x</span>
+                </div>
+                <!-- Mobile Touch Controls -->
+                <div class="flex sm:hidden gap-2 mt-2 pt-2 border-t border-white/20">
+                    <button id="btn-mobile-enter" class="bg-pink-600 text-white px-3 py-1.5 rounded font-bold text-xs">E: Vehicle</button>
+                    <button id="btn-mobile-horn" class="bg-sky-600 text-white px-3 py-1.5 rounded font-bold text-xs">Horn</button>
+                    <button id="btn-mobile-time" class="bg-amber-600 text-white px-3 py-1.5 rounded font-bold text-xs">Wardrobe</button>
+                </div>
+            </div>
+
+            <!-- Vehicle Speedometer (Hidden when on foot) -->
+            <div id="speedometer-panel" class="hidden neon-box p-4 rounded-2xl flex items-center gap-5 min-w-[220px] sm:min-w-[260px]">
+                <div class="flex flex-col">
+                    <span id="veh-class-badge" class="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded bg-sky-500/30 text-sky-300 font-bold w-fit">HYPER CLASS</span>
+                    <span id="veh-title" class="text-lg sm:text-xl font-extrabold text-white mt-0.5">Infernus Vice GT</span>
+                    <div class="w-32 h-2 bg-slate-800 rounded-full overflow-hidden mt-2">
+                        <div id="rpm-bar" class="h-full bg-gradient-to-r from-sky-400 via-amber-400 to-rose-500 w-0 transition-all duration-75"></div>
+                    </div>
+                </div>
+                <div class="text-right ml-auto">
+                    <div id="speed-value" class="vice-font text-4xl sm:text-5xl text-sky-300 leading-none">0</div>
+                    <div class="text-[11px] font-bold text-slate-400 tracking-widest mt-1">MPH</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Character Customization Wardrobe Drawer -->
+    <div id="wardrobe-modal" class="hidden fixed inset-y-0 right-0 z-30 flex items-center p-4 sm:p-6 pointer-events-none">
+        <div class="neon-box pointer-events-auto w-80 sm:w-96 rounded-2xl p-5 border border-sky-400/50 shadow-2xl text-white">
+            <div class="flex items-center justify-between border-b border-white/15 pb-3 mb-4">
+                <div>
+                    <h2 class="vice-font text-xl text-sky-300">MIAMI STYLING SUITE</h2>
+                    <p class="text-xs text-slate-300">Customize player appearance in real time</p>
+                </div>
+                <button id="close-wardrobe-btn" class="text-slate-400 hover:text-white text-lg font-bold px-2">✕</button>
+            </div>
+
+            <div class="space-y-4 text-xs max-h-[65vh] overflow-y-auto pr-1">
+                <div>
+                    <label class="block text-slate-300 font-bold uppercase tracking-wider mb-1.5">Outfit Style</label>
+                    <div class="grid grid-cols-2 gap-2" id="outfit-buttons">
+                        <button data-outfit="0" class="wardrobe-opt bg-sky-600/80 border border-sky-300 py-2 px-2.5 rounded-lg font-semibold text-left">1. Linen Resort Suit</button>
+                        <button data-outfit="1" class="wardrobe-opt bg-slate-800/80 hover:bg-slate-700 py-2 px-2.5 rounded-lg font-semibold text-left">2. Vice Designer Jacket</button>
+                        <button data-outfit="2" class="wardrobe-opt bg-slate-800/80 hover:bg-slate-700 py-2 px-2.5 rounded-lg font-semibold text-left">3. South Beach Tank</button>
+                        <button data-outfit="3" class="wardrobe-opt bg-slate-800/80 hover:bg-slate-700 py-2 px-2.5 rounded-lg font-semibold text-left">4. Streetwear Polo</button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-slate-300 font-bold uppercase tracking-wider mb-1.5">3D Hairstyles (10 Styles)</label>
+                    <div class="grid grid-cols-2 gap-2" id="hair-buttons">
+                        <button data-hair="0" class="bg-slate-800 hover:bg-slate-700 py-1.5 px-2 rounded-lg font-semibold text-left">1. Textured Quiff</button>
+                        <button data-hair="1" class="bg-slate-800 hover:bg-slate-700 py-1.5 px-2 rounded-lg font-semibold text-left">2. Short Fade</button>
+                        <button data-hair="2" class="bg-slate-800 hover:bg-slate-700 py-1.5 px-2 rounded-lg font-semibold text-left">3. Taper Fade</button>
+                        <button data-hair="3" class="bg-slate-800 hover:bg-slate-700 py-1.5 px-2 rounded-lg font-semibold text-left">4. Curly Crop</button>
+                        <button data-hair="4" class="bg-slate-800 hover:bg-slate-700 py-1.5 px-2 rounded-lg font-semibold text-left">5. Dreads</button>
+                        <button data-hair="5" class="bg-slate-800 hover:bg-slate-700 py-1.5 px-2 rounded-lg font-semibold text-left">6. Braids</button>
+                        <button data-hair="6" class="bg-slate-800 hover:bg-slate-700 py-1.5 px-2 rounded-lg font-semibold text-left">7. Afro</button>
+                        <button data-hair="7" class="bg-slate-800 hover:bg-slate-700 py-1.5 px-2 rounded-lg font-semibold text-left">8. Buzz Cut</button>
+                        <button data-hair="8" class="bg-slate-800 hover:bg-slate-700 py-1.5 px-2 rounded-lg font-semibold text-left">9. Messy Flow</button>
+                        <button data-hair="9" class="bg-slate-800 hover:bg-slate-700 py-1.5 px-2 rounded-lg font-semibold text-left">10. Slicked Back</button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-slate-300 font-bold uppercase tracking-wider mb-1.5">Skin Tone</label>
+                    <div class="flex gap-2" id="skin-buttons">
+                        <button data-skin="#f3cfb3" class="w-8 h-8 rounded-full border-2 border-white shadow" style="background:#f3cfb3"></button>
+                        <button data-skin="#e0ac69" class="w-8 h-8 rounded-full border-2 border-white shadow" style="background:#e0ac69"></button>
+                        <button data-skin="#c68642" class="w-8 h-8 rounded-full border-2 border-white shadow" style="background:#c68642"></button>
+                        <button data-skin="#8d5524" class="w-8 h-8 rounded-full border-2 border-white shadow" style="background:#8d5524"></button>
+                        <button data-skin="#5c3818" class="w-8 h-8 rounded-full border-2 border-white shadow" style="background:#5c3818"></button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-slate-300 font-bold uppercase tracking-wider mb-1.5">Designer Eyewear</label>
+                    <div class="grid grid-cols-3 gap-2" id="glasses-buttons">
+                        <button data-glasses="aviator" class="bg-slate-800 hover:bg-slate-700 py-1.5 px-2 rounded-lg font-semibold">Gold Aviators</button>
+                        <button data-glasses="wayfarer" class="bg-slate-800 hover:bg-slate-700 py-1.5 px-2 rounded-lg font-semibold">Dark Wayfarers</button>
+                        <button data-glasses="none" class="bg-slate-800 hover:bg-slate-700 py-1.5 px-2 rounded-lg font-semibold">No Glasses</button>
+                    </div>
+                </div>
+            </div>
+
+            <button id="done-wardrobe-btn" class="mt-5 w-full py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-emerald-500 text-white font-extrabold tracking-wide shadow-lg">
+                APPLY & RESUME (LOCK MOUSE)
+            </button>
+        </div>
+    </div>
+
+    <!-- NPC Conversation Modal Overlay -->
+    <div id="dialogue-modal" class="hidden fixed inset-x-0 bottom-8 z-40 flex justify-center p-4 pointer-events-none">
+        <div class="neon-box pointer-events-auto max-w-xl w-full rounded-2xl p-6 border-2 border-pink-500 shadow-2xl text-white">
+            <div class="flex items-center justify-between border-b border-white/15 pb-2 mb-3">
+                <div id="npc-name-tag" class="vice-font text-lg text-pink-400">Miami Resident</div>
+                <button id="close-dialogue-btn" class="text-slate-400 hover:text-white text-sm font-bold px-2">✕ (ESC)</button>
+            </div>
+            <p id="npc-dialogue-text" class="text-sm text-slate-200 leading-relaxed mb-4 min-h-[42px]">
+                "Hey there! Welcome to Vice Beach. Beautiful afternoon for a drive down Ocean Drive, isn't it?"
+            </p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2" id="dialogue-choices">
+                <button data-choice="0" class="dialogue-btn bg-sky-600/80 hover:bg-sky-500 py-2 px-3 rounded-lg text-xs font-bold text-left transition">"Sure is! What's the best spot around here?"</button>
+                <button data-choice="1" class="dialogue-btn bg-pink-600/80 hover:bg-pink-500 py-2 px-3 rounded-lg text-xs font-bold text-left transition">"Have you seen any exotic supercars lately?"</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Start / Pause Modal Overlay -->
+    <div id="welcome-modal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-30 p-4">
+        <div class="neon-box max-w-lg w-full rounded-2xl p-6 sm:p-8 text-center border-2 border-sky-400/60 shadow-2xl">
+            <h1 class="vice-font text-4xl sm:text-5xl text-white mb-2">VICE BEACH <span class="text-sky-400">HD</span></h1>
+            <p class="text-amber-300 font-semibold text-sm uppercase tracking-widest mb-5">Photorealistic Daytime Miami Open-World</p>
+            <p class="text-slate-200 text-sm leading-relaxed mb-6">
+                Experience a sun-drenched Miami afternoon featuring PBR clearcoat vehicles with detailed interiors, realistic articulated human characters, outdoor Ocean Drive cafes, dog walkers, cyclists, and the vibrant Miami Entertainment & Nightlife District.
+            </p>
+            <div class="grid grid-cols-3 gap-2 text-left bg-slate-900/90 p-3.5 rounded-xl mb-6 text-xs border border-sky-500/30">
+                <div><strong class="text-sky-400">PBR Graphics:</strong> Clearcoat paint, interior cockpits, real reflections</div>
+                <div><strong class="text-amber-400">Living Citizens:</strong> Friends chatting, cafe diners, dogs & cyclists</div>
+                <div><strong class="text-pink-400">Nightlife Strip:</strong> Club Pink Flamingo, velvet ropes, bouncers & bars</div>
+            </div>
+            <button id="start-game-btn" class="w-full py-3.5 rounded-xl bg-gradient-to-r from-sky-500 via-blue-600 to-pink-500 hover:from-sky-400 hover:to-pink-400 text-white font-extrabold text-lg tracking-wider shadow-lg transition transform hover:scale-[1.02] active:scale-95">
+                EXPLORE SUNNY MIAMI (LOCK MOUSE)
+            </button>
+        </div>
+    </div>
+
+    <script>
+        /********************************************************************
+         * 1. PROCEDURAL WEB AUDIO ENGINE (Engine RPM, Horn, Siren, Splash)
+         ********************************************************************/
+        class SoundManager {
+            constructor() {
+                this.ctx = null;
+                this.engineOsc = null;
+                this.engineGain = null;
+                this.subOsc = null;
+                this.initialized = false;
+            }
+
+            init() {
+                if (this.initialized) return;
+                try {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioCtx();
+
+                    // Main engine oscillator
+                    this.engineOsc = this.ctx.createOscillator();
+                    this.subOsc = this.ctx.createOscillator();
+                    this.engineGain = this.ctx.createGain();
+
+                    this.engineOsc.type = 'sawtooth';
+                    this.subOsc.type = 'triangle';
+                    this.engineOsc.frequency.value = 55;
+                    this.subOsc.frequency.value = 27.5;
+                    this.engineGain.gain.value = 0.0001;
+
+                    // Lowpass filter for warm muffled exhaust
+                    this.filter = this.ctx.createBiquadFilter();
+                    this.filter.type = 'lowpass';
+                    this.filter.frequency.value = 280;
+
+                    this.engineOsc.connect(this.filter);
+                    this.subOsc.connect(this.filter);
+                    this.filter.connect(this.engineGain);
+                    this.engineGain.connect(this.ctx.destination);
+
+                    this.engineOsc.start();
+                    this.subOsc.start();
+                    this.initialized = true;
+                } catch (e) {
+                    console.warn("Web Audio API not active:", e);
+                }
+            }
+
+            updateEngine(isDriving, speedRatio, pitchOffset = 1.0) {
+                if (!this.initialized || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                if (!isDriving) {
+                    this.engineGain.gain.setTargetAtTime(0.0001, now, 0.1);
+                    return;
+                }
+                // Simulate 4-gear shift teeth
+                const gearMod = (speedRatio * 3.2) % 0.85;
+                const baseFreq = (48 + speedRatio * 145 + gearMod * 45) * pitchOffset;
+                this.engineOsc.frequency.setTargetAtTime(baseFreq, now, 0.05);
+                this.subOsc.frequency.setTargetAtTime(baseFreq * 0.5, now, 0.05);
+                this.filter.frequency.setTargetAtTime(220 + speedRatio * 700, now, 0.06);
+                this.engineGain.gain.setTargetAtTime(0.045 + Math.min(speedRatio * 0.05, 0.05), now, 0.08);
+            }
+
+            playHorn(pitch = 340) {
+                if (!this.initialized || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc1 = this.ctx.createOscillator();
+                const osc2 = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc1.type = 'sawtooth';
+                osc2.type = 'sawtooth';
+                osc1.frequency.setValueAtTime(pitch, now);
+                osc2.frequency.setValueAtTime(pitch * 1.25, now); // Major third chord horn
+                gain.gain.setValueAtTime(0.08, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+                osc1.connect(gain);
+                osc2.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc1.start(now);
+                osc2.start(now);
+                osc1.stop(now + 0.45);
+                osc2.stop(now + 0.45);
+            }
+
+            playTireScreech() {
+                if (!this.initialized || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(620 + Math.random() * 140, now);
+                gain.gain.setValueAtTime(0.025, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.14);
+            }
+        }
+
+        const audio = new SoundManager();
+
+        /********************************************************************
+         * 2. WORLD CONFIGURATION, PBR MATERIALS & VEHICLE DEFINITIONS
+         ********************************************************************/
+        const VEHICLE_SPECS = {
+            supercar: {
+                name: 'Infernus Vice GT',
+                badge: 'SUPERCAR',
+                maxSpeed: 58,
+                accel: 34,
+                brake: 42,
+                turnSpeed: 2.35,
+                driftGrip: 0.93,
+                pitch: 1.35,
+                dims: { w: 2.3, h: 1.15, l: 4.7 },
+                colors: [0xd90429, 0x00b4d8, 0xffbe0b, 0xf8f9fa, 0xf77f00]
+            },
+            sportscar: {
+                name: 'Comet Turbo S',
+                badge: 'SPORTS',
+                maxSpeed: 49,
+                accel: 28,
+                brake: 36,
+                turnSpeed: 2.25,
+                driftGrip: 0.91,
+                pitch: 1.18,
+                dims: { w: 2.15, h: 1.25, l: 4.4 },
+                colors: [0x0077b6, 0xe63946, 0x2ec4b6, 0xfb8500]
+            },
+            sedan: {
+                name: 'Oceanic Cruiser',
+                badge: 'LUXURY SEDAN',
+                maxSpeed: 37,
+                accel: 19,
+                brake: 28,
+                turnSpeed: 1.95,
+                driftGrip: 0.94,
+                pitch: 0.92,
+                dims: { w: 2.1, h: 1.4, l: 4.8 },
+                colors: [0x1d3557, 0xe5e5e5, 0x457b9d, 0x6d597a, 0x2a9d8f]
+            },
+            suv: {
+                name: 'Cavalcade Escalade',
+                badge: 'EXECUTIVE SUV',
+                maxSpeed: 40,
+                accel: 22,
+                brake: 30,
+                turnSpeed: 1.8,
+                driftGrip: 0.95,
+                pitch: 0.8,
+                dims: { w: 2.35, h: 1.85, l: 5.0 },
+                colors: [0x111317, 0xf8f9fa, 0x495057, 0x9b2226]
+            },
+            truck: {
+                name: 'Sandking 4x4 Crew',
+                badge: '4X4 PICKUP',
+                maxSpeed: 38,
+                accel: 21,
+                brake: 26,
+                turnSpeed: 1.75,
+                driftGrip: 0.92,
+                pitch: 0.72,
+                dims: { w: 2.4, h: 1.95, l: 5.3 },
+                colors: [0xbc4749, 0x264653, 0xe76f51, 0x2a9d8f]
+            },
+            motorcycle: {
+                name: 'PCJ-600RR Supersport',
+                badge: 'MOTORCYCLE',
+                maxSpeed: 54,
+                accel: 38,
+                brake: 40,
+                turnSpeed: 2.8,
+                driftGrip: 0.94,
+                pitch: 1.65,
+                dims: { w: 0.95, h: 1.25, l: 2.4 },
+                colors: [0xd90429, 0x00bbf9, 0xffbe0b, 0xf8f9fa]
+            }
+        };
+
+        // Player Outfit Presets
+        const PLAYER_OUTFITS = [
+            { name: 'Linen Resort Suit', shirt: 0xf8f9fa, jacket: 0x38bdf8, pants: 0xf1f5f9, shoes: 0xffffff, hasJacket: true, shortSleeves: false },
+            { name: 'Vice Designer Jacket', shirt: 0x111827, jacket: 0xe11d48, pants: 0x1e293b, shoes: 0x0f172a, hasJacket: true, shortSleeves: false },
+            { name: 'South Beach Tank', shirt: 0x06d6a0, jacket: 0x06d6a0, pants: 0xf4a261, shoes: 0xffffff, hasJacket: false, shortSleeves: true },
+            { name: 'Streetwear Polo', shirt: 0xfbbf24, jacket: 0xfbbf24, pants: 0x334155, shoes: 0xe2e8f0, hasJacket: false, shortSleeves: true }
+        ];
+
+        const HAIR_COLORS = [0x1c1917, 0x451a03, 0x92400e];
+
+        // Road Grid Coordinates for Miami City Layout
+        const ROAD_X = [-180, -100, -20, 60];
+        const ROAD_Z = [-180, -90, 0, 90, 180];
+        const ROAD_WIDTH = 16;
+        const CLUB_LOCATION = { x: 32, z: -149, label: 'CLUB' };
+        const CLUB_INTERIOR_POS = new THREE.Vector3(550, 0.28, 550); // Hidden private room inside world coordinates
+        const RAILWAY_X = -140;
+
+        // Global State & Arrays Declaration
+        const colliders = [];
+        const buildingDoors = [];
+        const vehicles = [];
+        const npcs = [];
+
+        let scene, camera, renderer, clock, envMapTexture;
+        let waterMesh;
+        let isInsideClub = false;
+        let outsideWorldPos = new THREE.Vector3(48, 0.28, 12);
+        let activeDialogueNpc = null;
+        const dogs = [];
+        const cyclists = [];
+        const trafficLights = [];
+        const neonMaterials = [];
+        const streetLightBulbs = [];
+
+        let hemiLight, dirLight;
+        let fpsFrames = 0, fpsLastTime = performance.now();
+
+        // Wanted Level & Heat System helpers
+        function addWantedStar(count) {
+            wantedStars = Math.min(5, wantedStars + count);
+            wantedDecayTimer = 25;
+            updateStarsUI();
+        }
+
+        function updateStarsUI() {
+            const container = document.getElementById('stars-container');
+            if (!container) return;
+            const stars = container.getElementsByClassName('star');
+            for (let i = 0; i < stars.length; i++) {
+                if (i < wantedStars) {
+                    stars[i].classList.remove('text-slate-600');
+                    stars[i].classList.add('text-amber-400');
+                } else {
+                    stars[i].classList.remove('text-amber-400');
+                    stars[i].classList.add('text-slate-600');
+                }
+            }
+        }
+
+        // Input & Camera Controls
+        const keys = { w: false, a: false, s: false, d: false, shift: false, space: false };
+        let camYaw = 0;
+        let camPitch = 0.24;
+        let mouseSensitivity = 1.0;
+        let lastMouseMoveTime = 0;
+        let isPointerLocked = false;
+        let wantedStars = 0;
+        let playerCash = 12500;
+        let wantedDecayTimer = 0;
+
+        // Player Customization State
+        const playerConfig = {
+            outfitIndex: 0,
+            hairStyle: 0,
+            skinColor: '#e0ac69',
+            glasses: 'aviator'
+        };
+
+        /********************************************************************
+         * 3. HIGH-RES PROCEDURAL PBR TEXTURES & ENVIRONMENT REFLECTION PROBE
+         ********************************************************************/
+        function createEnvReflectionProbe(rendererInstance) {
+            const pmremGenerator = new THREE.PMREMGenerator(rendererInstance);
+            pmremGenerator.compileEquirectangularShader();
+
+            const envScene = new THREE.Scene();
+            // Sunny sky dome gradient for crisp reflections on cars and skyscraper glass
+            const skyCanvas = document.createElement('canvas');
+            skyCanvas.width = 512;
+            skyCanvas.height = 256;
+            const ctx = skyCanvas.getContext('2d');
+            const grad = ctx.createLinearGradient(0, 0, 0, 256);
+            grad.addColorStop(0.0, '#0284c7');
+            grad.addColorStop(0.42, '#38bdf8');
+            grad.addColorStop(0.49, '#bae6fd');
+            grad.addColorStop(0.51, '#0ea5e9');
+            grad.addColorStop(1.0, '#1e293b');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 512, 256);
+
+            // Bright solar reflection spot
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(360, 75, 22, 0, Math.PI * 2);
+            ctx.fill();
+
+            const skyTex = new THREE.CanvasTexture(skyCanvas);
+            skyTex.mapping = THREE.EquirectangularReflectionMapping;
+            const rt = pmremGenerator.fromEquirectangular(skyTex);
+            pmremGenerator.dispose();
+            return rt.texture;
+        }
+
+        function createAsphaltTexture() {
+            const c = document.createElement('canvas');
+            c.width = 256;
+            c.height = 256;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = '#2b2f36';
+            ctx.fillRect(0, 0, 256, 256);
+            for (let i = 0; i < 4000; i++) {
+                const v = 35 + Math.floor(Math.random() * 28);
+                ctx.fillStyle = `rgb(${v},${v},${v + 3})`;
+                ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
+            }
+            const tex = new THREE.CanvasTexture(c);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(6, 80);
+            return tex;
+        }
+
+        function createSidewalkPaverTexture() {
+            const c = document.createElement('canvas');
+            c.width = 256;
+            c.height = 256;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = '#e2e8f0';
+            ctx.fillRect(0, 0, 256, 256);
+
+            // Expansion joints
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 3;
+            for (let i = 0; i <= 256; i += 64) {
+                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 256); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(256, i); ctx.stroke();
+            }
+            for (let i = 0; i < 1800; i++) {
+                ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.2)' : 'rgba(15,23,42,0.06)';
+                ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
+            }
+            const tex = new THREE.CanvasTexture(c);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(8, 12);
+            return tex;
+        }
+
+        function createBuildingTexture(baseHex, stripeHex, isGlassTower = false) {
+            const c = document.createElement('canvas');
+            c.width = 512;
+            c.height = 1024;
+            const ctx = c.getContext('2d');
+
+            // Realistic Stucco or Curtain Wall Base
+            ctx.fillStyle = baseHex;
+            ctx.fillRect(0, 0, 512, 1024);
+
+            // Subtle architectural concrete/stucco grain
+            for (let i = 0; i < 4500; i++) {
+                ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
+                ctx.fillRect(Math.random() * 512, Math.random() * 1024, 3, 3);
+            }
+
+            // Art Deco vertical pilasters & horizontal cornices
+            ctx.fillStyle = stripeHex;
+            ctx.fillRect(24, 0, 22, 1024);
+            ctx.fillRect(466, 0, 22, 1024);
+
+            const rows = isGlassTower ? 22 : 11;
+            const cols = 4;
+            const padX = 76;
+            const winW = (512 - padX * 2) / cols - 14;
+            const winH = isGlassTower ? 32 : 52;
+
+            for (let r = 0; r < rows; r++) {
+                const wy = 36 + r * (960 / rows);
+                // Floor slab shadow line
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.18)';
+                ctx.fillRect(0, wy - 6, 512, 4);
+
+                for (let cIdx = 0; cIdx < cols; cIdx++) {
+                    const wx = padX + cIdx * (winW + 18);
+                    // Realistic daytime sky reflection gradient inside each window pane
+                    const wGrad = ctx.createLinearGradient(wx, wy, wx + winW, wy + winH);
+                    if (isGlassTower) {
+                        wGrad.addColorStop(0, '#0f172a');
+                        wGrad.addColorStop(0.45, '#1e3a8a');
+                        wGrad.addColorStop(0.85, '#38bdf8');
+                        wGrad.addColorStop(1, '#e0f2fe');
+                    } else {
+                        wGrad.addColorStop(0, '#1e293b');
+                        wGrad.addColorStop(0.6, '#334155');
+                        wGrad.addColorStop(1, '#7dd3fc');
+                    }
+                    ctx.fillStyle = wGrad;
+                    ctx.fillRect(wx, wy, winW, winH);
+
+                    // Window mullions & blinds
+                    ctx.strokeStyle = '#cbd5e1';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(wx, wy, winW, winH);
+                    if (!isGlassTower && (r + cIdx) % 3 === 0) {
+                        ctx.fillStyle = 'rgba(248, 250, 252, 0.45)';
+                        ctx.fillRect(wx + 2, wy + 2, winW - 4, winH * 0.38);
+                    }
+                }
+            }
+
+            const tex = new THREE.CanvasTexture(c);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.anisotropy = 4;
+            return tex;
+        }
+
+        function createSignboardTexture(titleText, subtitleText, bgHex, neonHex, accentHex) {
+            const c = document.createElement('canvas');
+            c.width = 512;
+            c.height = 256;
+            const ctx = c.getContext('2d');
+
+            ctx.fillStyle = bgHex;
+            ctx.fillRect(0, 0, 512, 256);
+
+            ctx.strokeStyle = neonHex;
+            ctx.lineWidth = 8;
+            ctx.strokeRect(12, 12, 488, 232);
+
+            ctx.strokeStyle = accentHex;
+            ctx.lineWidth = 3;
+            ctx.strokeRect(24, 24, 464, 208);
+
+            ctx.fillStyle = neonHex;
+            ctx.font = 'bold 46px Righteous, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = neonHex;
+            ctx.shadowBlur = 18;
+            ctx.fillText(titleText, 256, 118);
+
+            ctx.fillStyle = accentHex;
+            ctx.font = 'bold 24px Inter, sans-serif';
+            ctx.shadowBlur = 8;
+            ctx.fillText(subtitleText, 256, 175);
+
+            return new THREE.CanvasTexture(c);
+        }
+
+        /********************************************************************
+         * 4. SCENE INITIALIZATION & SUNNY MIAMI WORLD BUILDER
+         ********************************************************************/
+        function initGame() {
+            const canvas = document.getElementById('game-canvas');
+            renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.08;
+            renderer.outputEncoding = THREE.sRGBEncoding;
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x56b4f9);
+            scene.fog = new THREE.FogExp2(0x9bd4fc, 0.0011);
+
+            envMapTexture = createEnvReflectionProbe(renderer);
+            scene.environment = envMapTexture;
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.3, 950);
+            clock = new THREE.Clock();
+
+            // Natural Sunny Miami Afternoon Lighting
+            hemiLight = new THREE.HemisphereLight(0xdbeafe, 0x84a98c, 0.85);
+            scene.add(hemiLight);
+
+            dirLight = new THREE.DirectionalLight(0xfffbeb, 1.45);
+            dirLight.position.set(170, 240, 110);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 2048;
+            dirLight.shadow.mapSize.height = 2048;
+            dirLight.shadow.camera.near = 20;
+            dirLight.shadow.camera.far = 560;
+            const d = 210;
+            dirLight.shadow.camera.left = -d;
+            dirLight.shadow.camera.right = d;
+            dirLight.shadow.camera.top = d;
+            dirLight.shadow.camera.bottom = -d;
+            dirLight.shadow.bias = -0.0005;
+            scene.add(dirLight);
+
+            buildSunnySkyAndClouds();
+            buildWaterAndGround();
+            buildRoadNetwork();
+            buildRailwayLine();
+            buildDistrictsAndBuildings();
+            buildEntertainmentDistrict();
+            buildBeachAndBoardwalk();
+            buildBridgeAndStarIsland();
+            spawnTrafficLightsAndStreetlights();
+            spawnVehicles();
+            spawnPedestrians();
+            createPlayer();
+            setupControls();
+
+            window.addEventListener('resize', onWindowResize);
+            animate();
+        }
+
+        function buildSunnySkyAndClouds() {
+            // Atmospheric Sky Dome
+            const skyGeo = new THREE.SphereGeometry(850, 32, 24);
+            const skyCanvas = document.createElement('canvas');
+            skyCanvas.width = 256;
+            skyCanvas.height = 256;
+            const ctx = skyCanvas.getContext('2d');
+            const grad = ctx.createLinearGradient(0, 0, 0, 256);
+            grad.addColorStop(0.0, '#0369a1');
+            grad.addColorStop(0.32, '#0ea5e9');
+            grad.addColorStop(0.50, '#bae6fd');
+            grad.addColorStop(1.0, '#e0f2fe');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 256, 256);
+            const skyMat = new THREE.MeshBasicMaterial({
+                map: new THREE.CanvasTexture(skyCanvas),
+                side: THREE.BackSide,
+                fog: false
+            });
+            scene.add(new THREE.Mesh(skyGeo, skyMat));
+
+            // Brilliant Afternoon Sun Disc
+            const sunMesh = new THREE.Mesh(
+                new THREE.CircleGeometry(38, 32),
+                new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false })
+            );
+            sunMesh.position.set(340, 460, 220);
+            sunMesh.lookAt(0, 0, 0);
+            scene.add(sunMesh);
+
+            // Volumetric-style Cumulus Cloud Clusters across the tropical sky
+            const cloudMat = new THREE.MeshLambertMaterial({
+                color: 0xffffff,
+                emissive: 0xe2e8f0,
+                emissiveIntensity: 0.35,
+                transparent: true,
+                opacity: 0.92
+            });
+
+            for (let c = 0; c < 26; c++) {
+                const cloudGroup = new THREE.Group();
+                const puffs = 4 + (c % 4);
+                for (let p = 0; p < puffs; p++) {
+                    const r = 18 + Math.random() * 16;
+                    const puff = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), cloudMat);
+                    puff.position.set((p - puffs / 2) * 18, Math.random() * 6, (Math.random() - 0.5) * 14);
+                    puff.scale.set(1.4, 0.55, 1.0);
+                    cloudGroup.add(puff);
+                }
+                const angle = (c / 26) * Math.PI * 2;
+                const dist = 240 + (c % 3) * 130;
+                cloudGroup.position.set(Math.cos(angle) * dist, 165 + (c % 4) * 22, Math.sin(angle) * dist);
+                scene.add(cloudGroup);
+            }
+        }
+
+        function addBoxCollider(x, z, w, d, h = 20, type = 'solid') {
+            colliders.push({
+                minX: x - w / 2,
+                maxX: x + w / 2,
+                minZ: z - d / 2,
+                maxZ: z + d / 2,
+                maxY: h,
+                type
+            });
+        }
+
+        function buildWaterAndGround() {
+            // Realistic Atlantic Ocean & Canal Water Plane with sun specular shimmer
+            const waterGeo = new THREE.PlaneGeometry(1600, 1600, 85, 85);
+            waterGeo.rotateX(-Math.PI / 2);
+            const waterMat = new THREE.MeshPhysicalMaterial({
+                color: 0x0088a9,
+                roughness: 0.12,
+                metalness: 0.15,
+                clearcoat: 1.0,
+                clearcoatRoughness: 0.08,
+                reflectivity: 0.9
+            });
+            waterMesh = new THREE.Mesh(waterGeo, waterMat);
+            waterMesh.position.y = -1.1;
+            waterMesh.receiveShadow = true;
+            scene.add(waterMesh);
+
+            const grassMat = new THREE.MeshStandardMaterial({ color: 0x3b8a5a, roughness: 0.88 });
+
+            // West Mainland Ground (West of Canal at X = -35)
+            const westLand = new THREE.Mesh(new THREE.BoxGeometry(230, 2, 480), grassMat);
+            westLand.position.set(-150, -1, 0);
+            westLand.receiveShadow = true;
+            scene.add(westLand);
+
+            // East Miami Barrier Island
+            const eastLand = new THREE.Mesh(new THREE.BoxGeometry(112, 2, 480), grassMat);
+            eastLand.position.set(26, -1, 0);
+            eastLand.receiveShadow = true;
+            scene.add(eastLand);
+
+            // Warm Fine Miami Beach Sand Strip
+            const sandMat = new THREE.MeshStandardMaterial({ color: 0xf6e4c1, roughness: 0.82 });
+            const sandMesh = new THREE.Mesh(new THREE.BoxGeometry(65, 1.8, 480), sandMat);
+            sandMesh.position.set(113, -1.05, 0);
+            sandMesh.receiveShadow = true;
+            scene.add(sandMesh);
+
+            // Concrete Canal Seawalls
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.7 });
+            const canalWallW = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.4, 480), wallMat);
+            canalWallW.position.set(-35, 0, 0);
+            scene.add(canalWallW);
+
+            const canalWallE = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.4, 480), wallMat);
+            canalWallE.position.set(-29.5, 0, 0);
+            scene.add(canalWallE);
+
+            // Canal Bridges with White Balustrades
+            ROAD_Z.forEach(rz => {
+                const bridgeMesh = new THREE.Mesh(new THREE.BoxGeometry(8, 0.6, ROAD_WIDTH + 4), wallMat);
+                bridgeMesh.position.set(-32.25, 0.1, rz);
+                bridgeMesh.receiveShadow = true;
+                scene.add(bridgeMesh);
+            });
+        }
+
+        function buildRoadNetwork() {
+            const asphaltTex = createAsphaltTexture();
+            const roadMat = new THREE.MeshStandardMaterial({
+                map: asphaltTex,
+                roughness: 0.82,
+                metalness: 0.08
+            });
+            const lineYellowMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+            const crosswalkMat = new THREE.MeshBasicMaterial({ color: 0xf8fafc });
+
+            // North-South Avenues
+            ROAD_X.forEach(rx => {
+                const road = new THREE.Mesh(new THREE.BoxGeometry(ROAD_WIDTH, 0.12, 440), roadMat);
+                road.position.set(rx, 0.04, 0);
+                road.receiveShadow = true;
+                scene.add(road);
+
+                for (let z = -210; z <= 210; z += 12) {
+                    const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 5), lineYellowMat);
+                    dash.rotation.x = -Math.PI / 2;
+                    dash.position.set(rx, 0.12, z);
+                    scene.add(dash);
+                }
+            });
+
+            // East-West Streets
+            ROAD_Z.forEach(rz => {
+                const road = new THREE.Mesh(new THREE.BoxGeometry(280, 0.13, ROAD_WIDTH), roadMat);
+                road.position.set(-55, 0.05, rz);
+                road.receiveShadow = true;
+                scene.add(road);
+
+                for (let x = -190; x <= 75; x += 12) {
+                    const dash = new THREE.Mesh(new THREE.PlaneGeometry(5, 0.32), lineYellowMat);
+                    dash.rotation.x = -Math.PI / 2;
+                    dash.position.set(x, 0.13, rz);
+                    scene.add(dash);
+                }
+            });
+
+            // Crosswalks at Intersections
+            ROAD_X.forEach(rx => {
+                ROAD_Z.forEach(rz => {
+                    for (let i = -5; i <= 5; i += 2.5) {
+                        const stripeN = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 3.2), crosswalkMat);
+                        stripeN.rotation.x = -Math.PI / 2;
+                        stripeN.position.set(rx + i, 0.14, rz - ROAD_WIDTH / 2 - 1.8);
+                        scene.add(stripeN);
+
+                        const stripeS = stripeN.clone();
+                        stripeS.position.set(rx + i, 0.14, rz + ROAD_WIDTH / 2 + 1.8);
+                        scene.add(stripeS);
+                    }
+                });
+            });
+        }
+
+        function buildRailwayLine() {
+            // Low-profile, flush Miami Coastal Railway Line along X = RAILWAY_X (-140)
+            // No blocking colliders so supercars, sedans, and motorcycles glide across smoothly
+            const railGroup = new THREE.Group();
+            const ballastMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.92 });
+            const tieMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.88 });
+            const steelRailMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.88, roughness: 0.22 });
+            const apronMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.75 });
+            const signPostMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.6, roughness: 0.3 });
+            const crossbuckMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4 });
+
+            // Very low-profile gravel ballast bed (only 0.03m high so vehicles never snag)
+            const ballast = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.03, 440), ballastMat);
+            ballast.position.set(RAILWAY_X, 0.015, 0);
+            ballast.receiveShadow = true;
+            railGroup.add(ballast);
+
+            // Continuous ultra-low steel rails (0.025m high, flush with road surface at crossings)
+            const trackGauge = 1.45;
+            [-trackGauge / 2, trackGauge / 2].forEach(offsetX => {
+                const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.025, 440), steelRailMat);
+                rail.position.set(RAILWAY_X + offsetX, 0.042, 0);
+                rail.receiveShadow = true;
+                railGroup.add(rail);
+            });
+
+            // Wooden railway ties/sleepers spaced along the line
+            const tieGeo = new THREE.BoxGeometry(2.4, 0.022, 0.26);
+            for (let z = -216; z <= 216; z += 1.6) {
+                const onRoadCrossing = ROAD_Z.some(rz => Math.abs(z - rz) < ROAD_WIDTH / 2 + 1.5);
+                if (!onRoadCrossing) {
+                    const tie = new THREE.Mesh(tieGeo, tieMat);
+                    tie.position.set(RAILWAY_X, 0.026, z);
+                    tie.receiveShadow = true;
+                    railGroup.add(tie);
+                }
+            }
+
+            // Smooth beveled rubber/concrete level crossing aprons at every East-West street
+            ROAD_Z.forEach(rz => {
+                const apron = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.02, ROAD_WIDTH + 1.2), apronMat);
+                apron.position.set(RAILWAY_X, 0.055, rz);
+                apron.receiveShadow = true;
+                railGroup.add(apron);
+
+                // Yellow tactile warning strips on crossing edges
+                const warnMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+                [-2.1, 2.1].forEach(wx => {
+                    const strip = new THREE.Mesh(new THREE.PlaneGeometry(0.22, ROAD_WIDTH), warnMat);
+                    strip.rotation.x = -Math.PI / 2;
+                    strip.position.set(RAILWAY_X + wx, 0.068, rz);
+                    railGroup.add(strip);
+                });
+
+                // Visual-only Railroad Crossing X-Sign on the sidewalk corner (no intrusive track collider)
+                const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 3.4, 8), signPostMat);
+                post.position.set(RAILWAY_X - 3.2, 1.7, rz - ROAD_WIDTH / 2 - 1.8);
+                const buck1 = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.18, 0.05), crossbuckMat);
+                buck1.position.set(0, 1.3, 0.08);
+                buck1.rotation.z = Math.PI / 4;
+                const buck2 = buck1.clone();
+                buck2.rotation.z = -Math.PI / 4;
+                post.add(buck1, buck2);
+                railGroup.add(post);
+            });
+
+            scene.add(railGroup);
+        }
+
+        function buildDistrictsAndBuildings() {
+            // Build Art Deco Hotels, Skyscraper Towers, Apartments, and Waterfront Buildings
+            // 1. Ocean Drive Art Deco District (Between X = 35 and 65, Z = -180 to 180)
+            const artDecoPalettes = [
+                { base: '#fce7f3', accent: '#f43f5e', neon: '#ff2a85' },
+                { base: '#e0f2fe', accent: '#0284c7', neon: '#00f0ff' },
+                { base: '#fef3c7', accent: '#f59e0b', neon: '#ffb703' },
+                { base: '#d1fae5', accent: '#10b981', neon: '#06d6a0' }
+            ];
+
+            let palIdx = 0;
+            for (let z = -170; z <= 170; z += 42) {
+                const pal = artDecoPalettes[palIdx % artDecoPalettes.length];
+                buildArtDecoHotel(48, z, 26, 34, 18 + (z % 3) * 4, pal.base, pal.accent, pal.neon);
+                palIdx++;
+            }
+
+            // 2. Downtown Brickell Glass Skyscrapers (Between X = -100 and -20)
+            const glassColors = ['#0f172a', '#1e3a8a', '#065f46', '#312e81'];
+            let gIdx = 0;
+            for (let x = -85; x <= -35; x += 38) {
+                for (let z = -160; z <= 160; z += 55) {
+                    const col = glassColors[gIdx % glassColors.length];
+                    buildSkyscraper(x, z, 28, 28, 48 + (gIdx % 4) * 14, col, gIdx % 2 === 0 ? '#38bdf8' : '#ff2a85');
+                    gIdx++;
+                }
+            }
+
+            // 3. West Residential Neighborhood (West of Canal at X = -150)
+            const houseMat = new THREE.MeshStandardMaterial({ color: 15790320, roughness: 0.8 });
+            const roofMat = new THREE.MeshStandardMaterial({ color: 10329501, roughness: 0.7 });
+            for (let x = -190; x <= -110; x += 45) {
+                for (let z = -170; z <= 170; z += 48) {
+                    const houseGroup = new THREE.Group();
+                    const body = new THREE.Mesh(new THREE.BoxGeometry(18, 9, 22), houseMat);
+                    body.position.y = 4.5;
+                    body.castShadow = true;
+                    body.receiveShadow = true;
+
+                    const roof = new THREE.Mesh(new THREE.ConeGeometry(14, 6, 4), roofMat);
+                    roof.position.y = 12;
+                    roof.rotation.y = Math.PI / 4;
+                    roof.castShadow = true;
+
+                    houseGroup.add(body, roof);
+                    houseGroup.position.set(x, 0, z);
+                    scene.add(houseGroup);
+                    addBoxCollider(x, z, 18, 22, 15);
+                }
+            }
+        }
+
+        function buildBeachAndBoardwalk() {
+            // South Beach Promenade & Lifeguard Towers
+            const woodMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.85 });
+            const boardwalk = new THREE.Mesh(new THREE.BoxGeometry(14, 0.25, 440), woodMat);
+            boardwalk.position.set(82, 0.12, 0);
+            boardwalk.receiveShadow = true;
+            scene.add(boardwalk);
+
+            // Iconic Colorful Lifeguard Towers along South Beach
+            const towerColors = [0xef4444, 0x38bdf8, 0xfacc15, 0x10b981];
+            [-120, -40, 40, 120].forEach((tz, i) => {
+                const tGroup = new THREE.Group();
+                const colMat = new THREE.MeshStandardMaterial({ color: towerColors[i % towerColors.length], roughness: 0.5 });
+                const base = new THREE.Mesh(new THREE.BoxGeometry(3.5, 3.5, 3.5), colMat);
+                base.position.y = 3.5;
+                base.castShadow = true;
+
+                const roof = new THREE.Mesh(new THREE.ConeGeometry(2.8, 1.8, 4), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+                roof.position.y = 6.0;
+                roof.rotation.y = Math.PI / 4;
+
+                tGroup.add(base, roof);
+                tGroup.position.set(112, 0, tz);
+                scene.add(tGroup);
+                addBoxCollider(112, tz, 3.5, 3.5, 7);
+            });
+
+            // Palm trees along beach & boulevards
+            for (let z = -200; z <= 200; z += 35) {
+                buildPalmTree(72, z, 1.1);
+                buildPalmTree(24, z, 0.95);
+            }
+        }
+
+        function buildBridgeAndStarIsland() {
+            // Venetian Causeway & Star Island Mansions (East of X=136)
+            const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.6 });
+            const causeway = new THREE.Mesh(new THREE.BoxGeometry(62, 0.8, ROAD_WIDTH), bridgeMat);
+            causeway.position.set(165, 0.4, 0);
+            causeway.receiveShadow = true;
+            scene.add(causeway);
+
+            // Star Island Luxury Mansion
+            const mansionMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4 });
+            const mansion = new THREE.Mesh(new THREE.BoxGeometry(45, 14, 45), mansionMat);
+            mansion.position.set(240, 7, 0);
+            mansion.castShadow = true;
+            mansion.receiveShadow = true;
+            scene.add(mansion);
+            addBoxCollider(240, 0, 45, 45, 16);
+        }
+
+        function spawnTrafficLightsAndStreetlights() {
+            const poleMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8 });
+            ROAD_X.forEach(rx => {
+                ROAD_Z.forEach(rz => {
+                    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 5.5, 8), poleMat);
+                    pole.position.set(rx - ROAD_WIDTH / 2 - 1.2, 2.75, rz - ROAD_WIDTH / 2 - 1.2);
+                    scene.add(pole);
+
+                    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), new THREE.MeshBasicMaterial({ color: 0xfef08a }));
+                    bulb.position.set(0, 2.6, 0);
+                    pole.add(bulb);
+                    streetLightBulbs.push(bulb);
+
+                    const light = new THREE.PointLight(0xfef08a, 0.8, 22);
+                    light.position.set(0, 2.3, 0);
+                    pole.add(light);
+                });
+            });
+        }
+
+        function createNeonStrip(w, h, d, colorHex) {
+            const mat = new THREE.MeshBasicMaterial({ color: colorHex });
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+            neonMaterials.push(mat);
+            return mesh;
+        }
+
+        function buildArtDecoHotel(x, z, w, d, h, baseColor, accentColor, neonColor) {
+            const group = new THREE.Group();
+            const tex = createBuildingTexture(baseColor, accentColor, false);
+            const bodyMat = new THREE.MeshStandardMaterial({
+                map: tex,
+                roughness: 0.45,
+                metalness: 0.15
+            });
+            const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bodyMat);
+            body.position.y = h / 2;
+            body.castShadow = true;
+            body.receiveShadow = true;
+            group.add(body);
+
+            // Stepped Art Deco Crown
+            const crown1 = new THREE.Mesh(
+                new THREE.BoxGeometry(w * 0.72, 3.5, d * 0.72),
+                new THREE.MeshStandardMaterial({ color: accentColor, roughness: 0.5 })
+            );
+            crown1.position.y = h + 1.75;
+            crown1.castShadow = true;
+            group.add(crown1);
+
+            const spire = createNeonStrip(1.1, 5.5, 1.1, neonColor);
+            spire.position.y = h + 4.8;
+            group.add(spire);
+
+            // Architectural Eyebrow Ledges over floors
+            const ledgeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 });
+            for (let ly = 5; ly < h - 2; ly += 5.5) {
+                const ledge = new THREE.Mesh(new THREE.BoxGeometry(w + 0.6, 0.3, d + 0.6), ledgeMat);
+                ledge.position.y = ly;
+                group.add(ledge);
+            }
+
+            // Entrance Awning
+            const awning = createNeonStrip(3.2, 0.4, 6, neonColor);
+            awning.position.set(w / 2 + 1.2, 3.4, 0);
+            group.add(awning);
+
+            group.position.set(x, 0, z);
+            scene.add(group);
+            addBoxCollider(x, z, w, d, h + 4);
+            buildingDoors.push({ x: x + w / 2 + 1.5, z: z });
+        }
+
+        function buildSkyscraper(x, z, w, d, h, glassHex, neonColor) {
+            const group = new THREE.Group();
+            const tex = createBuildingTexture(glassHex, '#e2e8f0', true);
+            const mat = new THREE.MeshPhysicalMaterial({
+                map: tex,
+                roughness: 0.12,
+                metalness: 0.75,
+                clearcoat: 1.0,
+                reflectivity: 1.0
+            });
+            const tower = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+            tower.position.y = h / 2;
+            tower.castShadow = true;
+            tower.receiveShadow = true;
+            group.add(tower);
+
+            // Steel Mullion Columns
+            const steelMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.8, roughness: 0.25 });
+            [-w / 2, w / 2].forEach(cx => {
+                [-d / 2, d / 2].forEach(cz => {
+                    const col = new THREE.Mesh(new THREE.BoxGeometry(0.9, h + 8, 0.9), steelMat);
+                    col.position.set(cx, (h + 8) / 2, cz);
+                    group.add(col);
+                });
+            });
+
+            const topTier = new THREE.Mesh(new THREE.BoxGeometry(w * 0.75, 8, d * 0.75), mat);
+            topTier.position.y = h + 4;
+            topTier.castShadow = true;
+            group.add(topTier);
+
+            const ring = createNeonStrip(w + 0.5, 0.6, d + 0.5, neonColor);
+            ring.position.y = h;
+            group.add(ring);
+
+            group.position.set(x, 0, z);
+            scene.add(group);
+            addBoxCollider(x, z, w, d, h + 8);
+            buildingDoors.push({ x: x, z: z + d / 2 + 1.5 });
+        }
+
+        function buildPalmTree(x, z, scale = 1.0) {
+            const group = new THREE.Group();
+            const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8b6b4a, roughness: 0.9 });
+            const leafMat = new THREE.MeshStandardMaterial({ color: 0x2d8a4e, roughness: 0.6, side: THREE.DoubleSide });
+
+            let curX = 0, curY = 0;
+            for (let i = 0; i < 6; i++) {
+                const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.28 - i * 0.025, 0.33 - i * 0.025, 1.55, 8), trunkMat);
+                seg.position.set(curX, curY + 0.78, 0);
+                seg.rotation.z = -i * 0.055;
+                seg.castShadow = true;
+                group.add(seg);
+                curY += 1.48;
+                curX += i * 0.085;
+            }
+
+            // Coconuts cluster
+            const cocoMat = new THREE.MeshStandardMaterial({ color: 0x4a3520, roughness: 0.8 });
+            for (let c = 0; c < 3; c++) {
+                const coco = new THREE.Mesh(new THREE.SphereGeometry(0.18, 6, 6), cocoMat);
+                coco.position.set(curX + (c - 1) * 0.16, curY - 0.15, 0.15);
+                group.add(coco);
+            }
+
+            // Arching Multi-Segment Palm Fronds
+            for (let f = 0; f < 9; f++) {
+                const angle = (f / 9) * Math.PI * 2;
+                const frondGroup = new THREE.Group();
+                frondGroup.position.set(curX, curY, 0);
+                frondGroup.rotation.y = angle;
+
+                const mid = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.08, 0.75), leafMat);
+                mid.position.set(0.95, 0.1, 0);
+                mid.rotation.z = -0.18;
+                mid.castShadow = true;
+
+                const tip = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.06, 0.55), leafMat);
+                tip.position.set(2.55, -0.38, 0);
+                tip.rotation.z = -0.52;
+                tip.castShadow = true;
+
+                frondGroup.add(mid, tip);
+                group.add(frondGroup);
+            }
+
+            group.position.set(x, 0, z);
+            group.scale.setScalar(scale);
+            scene.add(group);
+            addBoxCollider(x, z, 0.9, 0.9, 8 * scale);
+        }
+
+        function buildOutdoorCafePatio(x, z, umbrellaColor1, umbrellaColor2) {
+            const patioGroup = new THREE.Group();
+            const tableMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 });
+            const poleMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7 });
+
+            for (let i = -1; i <= 1; i++) {
+                const tz = i * 5.2;
+                const uCol = i % 2 === 0 ? umbrellaColor1 : umbrellaColor2;
+                const umbMat = new THREE.MeshStandardMaterial({ color: uCol, roughness: 0.5, side: THREE.DoubleSide });
+
+                const top = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 0.08, 12), tableMat);
+                top.position.set(0, 0.85, tz);
+                top.castShadow = true;
+
+                const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 0.85, 8), poleMat);
+                leg.position.set(0, 0.42, tz);
+
+                const uPole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.5, 8), poleMat);
+                uPole.position.set(0, 1.4, tz);
+
+                const canopy = new THREE.Mesh(new THREE.ConeGeometry(1.95, 0.75, 10), umbMat);
+                canopy.position.set(0, 2.65, tz);
+                canopy.castShadow = true;
+
+                patioGroup.add(top, leg, uPole, canopy);
+
+                // Spawn 2 seated cafe patrons at each table
+                [-0.95, 0.95].forEach((cx, seatIdx) => {
+                    const chair = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.5, 0.55), poleMat);
+                    chair.position.set(cx, 0.25, tz);
+                    patioGroup.add(chair);
+
+                    const patron = createRealisticHuman({
+                        shirtColor: [0xf43f5e, 0x0ea5e9, 0x10b981, 0xf59e0b][(Math.abs(i) + seatIdx) % 4],
+                        pantsColor: 0xf8fafc,
+                        skinColor: ['#f3cfb3', '#e0ac69', '#c68642', '#8d5524'][(Math.abs(i) + seatIdx) % 4],
+                        hairColor: 0x1c1917,
+                        hairStyle: seatIdx % 3,
+                        glasses: 'wayfarer',
+                        shortSleeves: true
+                    });
+                    patron.group.position.set(x + cx, 0.15, z + tz);
+                    patron.group.rotation.y = cx < 0 ? Math.PI / 2 : -Math.PI / 2;
+                    // Seated pose
+                    patron.leftThigh.rotation.x = -Math.PI / 2;
+                    patron.rightThigh.rotation.x = -Math.PI / 2;
+                    patron.leftCalf.rotation.x = Math.PI / 2;
+                    patron.rightCalf.rotation.x = Math.PI / 2;
+                    patron.leftArm.rotation.x = -0.6;
+                    patron.rightArm.rotation.x = -0.6;
+                    scene.add(patron.group);
+                });
+            }
+
+            patioGroup.position.set(x, 0.28, z);
+            scene.add(patioGroup);
+        }
+
+        function buildEntertainmentDistrict() {
+            // Dedicated Miami Entertainment & Nightlife Strip at Block (xi=2, zi=0 -> X=20, Z=-135) & Ocean Drive South
+            const cx = 20, cz = -135;
+
+            // 1. Flagship Enterable Nightclub & Cabaret: "CLUB PINK FLAMINGO - VIP CABARET & LOUNGE"
+            const clubGroup = new THREE.Group();
+            const facadeTex = createBuildingTexture('#1e1b4b', '#f43f5e', false);
+            const clubBody = new THREE.Mesh(
+                new THREE.BoxGeometry(26, 20, 32),
+                new THREE.MeshStandardMaterial({ map: facadeTex, roughness: 0.35, metalness: 0.3 })
+            );
+            clubBody.position.y = 10;
+            clubBody.castShadow = true;
+            clubBody.receiveShadow = true;
+            clubGroup.add(clubBody);
+
+            // Functional double doors at entrance
+            const doorMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.2, metalness: 0.8 });
+            [-1.2, 1.2].forEach(dx => {
+                const door = new THREE.Mesh(new THREE.BoxGeometry(1.2, 3.2, 0.2), doorMat);
+                door.position.set(13.1, 1.6, dx);
+                clubGroup.add(door);
+            });
+
+            // High-res illuminated Marquee Signboard
+            const signTex = createSignboardTexture('CLUB PINK FLAMINGO', 'ENTERTAINMENT • VIP LOUNGE • PRESS E', '#0f172a', '#ff2a85', '#38bdf8');
+            const marquee = new THREE.Mesh(
+                new THREE.BoxGeometry(0.6, 5.5, 16),
+                new THREE.MeshBasicMaterial({ map: signTex })
+            );
+            marquee.position.set(13.3, 13.5, 0);
+            clubGroup.add(marquee);
+
+            // Red Carpet & Gold Velvet Rope Stanchions at East Entrance
+            const carpet = new THREE.Mesh(
+                new THREE.BoxGeometry(6.5, 0.06, 4.2),
+                new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.8 })
+            );
+            carpet.position.set(15.5, 0.31, 0);
+            clubGroup.add(carpet);
+
+            const goldMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.9, roughness: 0.15 });
+            const ropeMat = new THREE.MeshStandardMaterial({ color: 0xe11d48, roughness: 0.5 });
+            [-2.2, 2.2].forEach(rz => {
+                [14, 16.5, 19].forEach(rx => {
+                    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 1.05, 8), goldMat);
+                    post.position.set(rx, 0.8, rz);
+                    clubGroup.add(post);
+                });
+                const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 5.0, 8), ropeMat);
+                rope.rotation.z = Math.PI / 2;
+                rope.position.set(16.5, 1.15, rz);
+                clubGroup.add(rope);
+            });
+
+            // Two Suited Security Bouncers standing guard outside VIP Rope
+            [-2.9, 2.9].forEach(bz => {
+                const bouncer = createRealisticHuman({
+                    shirtColor: 0xffffff,
+                    jacketColor: 0x0f172a,
+                    pantsColor: 0x0f172a,
+                    skinColor: bz < 0 ? '#8d5524' : '#e0ac69',
+                    hairColor: 0x111111,
+                    hairStyle: 1,
+                    glasses: 'wayfarer',
+                    hasJacket: true,
+                    scale: 1.08
+                });
+                bouncer.group.position.set(cx + 12 + 14.5, 0.28, cz - 14 + bz);
+                bouncer.group.rotation.y = Math.PI / 2;
+                bouncer.leftArm.rotation.x = -0.35;
+                bouncer.rightArm.rotation.x = -0.35;
+                bouncer.leftArm.rotation.z = 0.2;
+                bouncer.rightArm.rotation.z = -0.2;
+                scene.add(bouncer.group);
+            });
+
+            clubGroup.position.set(cx + 12, 0, cz - 14);
+            scene.add(clubGroup);
+            addBoxCollider(cx + 12, cz - 14, 26, 32, 22);
+
+            // Register enterable doorway trigger location
+            buildingDoors.push({
+                x: cx + 12 + 13.5,
+                z: cz - 14,
+                isNightclub: true,
+                name: 'Club Pink Flamingo'
+            });
+
+            // Build Club Interior Room (Hidden at X=550, Z=550)
+            buildClubInterior();
+
+            // 2. Live Music & Latin Cocktail Venue next door: "HAVANA RHYTHM LIVE"
+            const musicSignTex = createSignboardTexture('HAVANA RHYTHM', 'LIVE SALSA • MOJITO BAR • ROOFTOP', '#172554', '#38bdf8', '#facc15');
+            const musicBar = new THREE.Mesh(
+                new THREE.BoxGeometry(0.6, 4.5, 14),
+                new THREE.MeshBasicMaterial({ map: musicSignTex })
+            );
+            musicBar.position.set(cx + 21.5, 11.5, cz + 18);
+            scene.add(musicBar);
+
+            // Outdoor Dining Patios along Ocean Drive & Entertainment Strip
+            buildOutdoorCafePatio(45.5, -118, 0xf43f5e, 0xffffff);
+            buildOutdoorCafePatio(45.5, -45, 0x0ea5e9, 0xfacc15);
+            buildOutdoorCafePatio(45.5, 45, 0x10b981, 0xffffff);
+        }
+
+        function buildClubInterior() {
+            const ix = CLUB_INTERIOR_POS.x;
+            const iz = CLUB_INTERIOR_POS.z;
+            const group = new THREE.Group();
+
+            // Room Floor & Walls
+            const floorMat = new THREE.MeshStandardMaterial({ color: 0x090d16, roughness: 0.2, metalness: 0.8 });
+            const floor = new THREE.Mesh(new THREE.BoxGeometry(45, 0.4, 45), floorMat);
+            floor.position.set(ix, 0.2, iz);
+            floor.receiveShadow = true;
+            group.add(floor);
+
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.6 });
+            const backWall = new THREE.Mesh(new THREE.BoxGeometry(45, 16, 1), wallMat);
+            backWall.position.set(ix, 8, iz - 22.5);
+            const leftWall = new THREE.Mesh(new THREE.BoxGeometry(1, 16, 45), wallMat);
+            leftWall.position.set(ix - 22.5, 8, iz);
+            const rightWall = new THREE.Mesh(new THREE.BoxGeometry(1, 16, 45), wallMat);
+            rightWall.position.set(ix + 22.5, 8, iz);
+            group.add(backWall, leftWall, rightWall);
+
+            // Glowing LED Dance Floor
+            const danceMat = new THREE.MeshBasicMaterial({ color: 0xff2a85 });
+            const danceFloor = new THREE.Mesh(new THREE.BoxGeometry(16, 0.45, 16), danceMat);
+            danceFloor.position.set(ix, 0.24, iz - 4);
+            group.add(danceFloor);
+
+            // DJ Booth & Turntables
+            const djMat = new THREE.MeshStandardMaterial({ color: 0x1e1b4b, metalness: 0.8 });
+            const djBooth = new THREE.Mesh(new THREE.BoxGeometry(6, 3.2, 2.4), djMat);
+            djBooth.position.set(ix, 1.6, iz - 15);
+            group.add(djBooth);
+
+            // Bar Counter & Stools
+            const barMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.4 });
+            const bar = new THREE.Mesh(new THREE.BoxGeometry(18, 2.8, 2.2), barMat);
+            bar.position.set(ix - 12, 1.4, iz + 8);
+            group.add(bar);
+
+            // VIP Seating Booths & Tables
+            [-14, 14].forEach(bx => {
+                [-4, 4, 12].forEach(bz => {
+                    const boothTable = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 0.9, 12), barMat);
+                    boothTable.position.set(ix + bx, 0.45, iz + bz);
+                    group.add(boothTable);
+                });
+            });
+
+            // Colorful Club Lighting & Neon Strobes
+            const lightColor = 0xff2a85;
+            const clubPointLight = new THREE.PointLight(lightColor, 2.5, 35);
+            clubPointLight.position.set(ix, 12, iz);
+            group.add(clubPointLight);
+
+            // Exit Door back to Street at (ix + 22.5, iz)
+            const exitSignTex = createSignboardTexture('EXIT TO CITY', 'OCEAN DRIVE', '#0f172a', '#00f0ff', '#ffffff');
+            const exitSign = new THREE.Mesh(new THREE.BoxGeometry(0.5, 3, 5), new THREE.MeshBasicMaterial({ map: exitSignTex }));
+            exitSign.position.set(ix + 22.1, 7, iz);
+            group.add(exitSign);
+
+            buildingDoors.push({
+                x: ix + 22.2,
+                z: iz,
+                isNightclubExit: true,
+                name: 'Exit to Ocean Drive'
+            });
+
+            scene.add(group);
+        }
+<!-- ... upward diff context ... -->
+        function createVehicleMesh(typeKey, colorHex) {
+            const spec = VEHICLE_SPECS[typeKey];
+            const root = new THREE.Group();
+            const chassis = new THREE.Group();
+            root.add(chassis);
+
+            const bodyMat = new THREE.MeshStandardMaterial({
+                color: colorHex,
+                roughness: 0.12,
+                metalness: 0.85,
+                clearcoat: 1.0,
+                clearcoatRoughness: 0.05
+            });
+            const interiorMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.8 });
+            const glassMat = new THREE.MeshPhysicalMaterial({
+                color: 0xffffff,
+                roughness: 0.05,
+                transmission: 0.88,
+                thickness: 0.5,
+                transparent: true,
+                opacity: 0.72
+            });
+            const leatherMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.55 });
+            const chromeMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, metalness: 0.92, roughness: 0.12 });
+            const headlightMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfef08a, emissiveIntensity: 0.75 });
+            const taillightMat = new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xdc2626, emissiveIntensity: 0.85 });
+
+            const { w, h, l } = spec.dims;
+            let steeringWheelMesh = null;
+            let driverSeatAnchor = new THREE.Group();
+            chassis.add(driverSeatAnchor);
+
+            if (typeKey === 'motorcycle') {
+                const frame = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.52, 1.65), bodyMat);
+                frame.position.set(0, 0.65, 0);
+                frame.castShadow = true;
+                const seat = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.16, 0.75), interiorMat);
+                seat.position.set(0, 0.94, -0.15);
+                const fairing = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.95, 8), bodyMat);
+                fairing.rotation.x = Math.PI / 2;
+                fairing.position.set(0, 0.85, 0.72);
+                const windshield = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.28, 0.4), glassMat);
+                windshield.rotation.x = -0.5;
+                windshield.position.set(0, 1.12, 0.55);
+
+                const handlebarPivot = new THREE.Group();
+                handlebarPivot.position.set(0, 1.08, 0.42);
+                const handlebar = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.82), chromeMat);
+                handlebar.rotation.z = Math.PI / 2;
+                handlebarPivot.add(handlebar);
+                steeringWheelMesh = handlebarPivot;
+
+                const pegGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.58, 8);
+                pegGeo.rotateZ(Math.PI / 2);
+                const pegs = new THREE.Mesh(pegGeo, chromeMat);
+                pegs.position.set(0, 0.44, -0.05);
+
+                const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.9, 8), chromeMat);
+                exhaust.rotation.x = Math.PI / 2 - 0.2;
+                exhaust.position.set(0.28, 0.5, -0.55);
+                const headlight = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 10), headlightMat);
+                headlight.position.set(0, 0.85, 1.08);
+                chassis.add(frame, seat, fairing, windshield, handlebarPivot, pegs, exhaust, headlight);
+
+                // Perfectly proportioned motorcycle rider anchor
+                driverSeatAnchor.position.set(0, 0.48, -0.12);
+            } else {
+                const lowerH = h * 0.55;
+                const lower = new THREE.Mesh(new THREE.BoxGeometry(w, lowerH, l), bodyMat);
+                lower.position.y = lowerH / 2 + 0.32;
+                lower.castShadow = true;
+                lower.receiveShadow = true;
+                chassis.add(lower);
+
+                // Sculpted Hood Scoops & Grille
+                const grille = new THREE.Mesh(new THREE.BoxGeometry(w * 0.62, lowerH * 0.48, 0.08), interiorMat);
+                grille.position.set(0, lowerH * 0.48 + 0.3, l / 2 + 0.01);
+                chassis.add(grille);
+
+                // Detailed Interior Cabin (Dashboard, Steering Wheel, Bucket Seats)
+                const dash = new THREE.Mesh(new THREE.BoxGeometry(w * 0.78, 0.38, 0.58), interiorMat);
+                dash.position.set(0, lowerH + 0.38, 0.52);
+
+                const swGroup = new THREE.Group();
+                swGroup.position.set(w * 0.22, lowerH + 0.58, 0.26);
+                const swRim = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.026, 8, 16), interiorMat);
+                const swHub = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.03, 0.03), chromeMat);
+                swGroup.add(swRim, swHub);
+                steeringWheelMesh = swGroup;
+                chassis.add(dash, swGroup);
+
+                [-w * 0.22, w * 0.22].forEach(sx => {
+                    const seatBase = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.15, 0.48), leatherMat);
+                    seatBase.position.set(sx, lowerH + 0.22, -0.08);
+                    const seatBack = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.62, 0.16), leatherMat);
+                    seatBack.position.set(sx, lowerH + 0.52, -0.28);
+                    seatBack.rotation.x = -0.16;
+                    chassis.add(seatBase, seatBack);
+                });
+
+                // CRITICAL FIX: Position driver seat anchor so character's head NEVER sticks out through roof
+                // Aligned precisely inside left driver seat behind dashboard and below roofline
+                driverSeatAnchor.position.set(w * 0.22, lowerH + 0.12, -0.05);
+
+                // Aerodynamic Glass Cabin Greenhouse
+                const cabL = typeKey === 'truck' ? l * 0.42 : (typeKey === 'suv' ? l * 0.68 : l * 0.52);
+                const cabZ = typeKey === 'truck' ? 0.35 : -0.12;
+                const cabin = new THREE.Mesh(new THREE.BoxGeometry(w * 0.84, h * 0.46, cabL), glassMat);
+                cabin.position.set(0, lowerH + h * 0.22 + 0.32, cabZ);
+                chassis.add(cabin);
+
+                const roof = new THREE.Mesh(new THREE.BoxGeometry(w * 0.82, 0.1, cabL * 0.92), bodyMat);
+                roof.position.set(0, lowerH + h * 0.45 + 0.32, cabZ);
+                roof.castShadow = true;
+                chassis.add(roof);
+
+                // Side Wing Mirrors
+                [-w / 2 - 0.08, w / 2 + 0.08].forEach(mx => {
+                    const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.14), bodyMat);
+                    mirror.position.set(mx, lowerH + 0.42, 0.55);
+                    chassis.add(mirror);
+                });
+
+                if (typeKey === 'supercar' || typeKey === 'sportscar') {
+                    const wing = new THREE.Mesh(new THREE.BoxGeometry(w * 0.94, 0.08, 0.42), bodyMat);
+                    wing.position.set(0, lowerH + 0.62, -l / 2 + 0.28);
+                    chassis.add(wing);
+                }
+
+                [-w * 0.34, w * 0.34].forEach(lx => {
+                    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.2, 0.1), headlightMat);
+                    hl.position.set(lx, lowerH * 0.72 + 0.3, l / 2 + 0.02);
+                    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.2, 0.1), taillightMat);
+                    tl.position.set(lx, lowerH * 0.72 + 0.3, -l / 2 - 0.02);
+                    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.25, 8), chromeMat);
+                    pipe.rotation.x = Math.PI / 2;
+                    pipe.position.set(lx * 0.8, 0.38, -l / 2 - 0.05);
+                    chassis.add(hl, tl, pipe);
+                });
+            }
+
+            const tireGeo = new THREE.CylinderGeometry(0.39, 0.39, 0.28, 16);
+            tireGeo.rotateZ(Math.PI / 2);
+            const rimGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.3, 10);
+            rimGeo.rotateZ(Math.PI / 2);
+            const tireMat = new THREE.MeshStandardMaterial({ color: 0x171717, roughness: 0.85 });
+            const wheels = [];
+
+            const makeWheel = (xPos, zPos) => {
+                const wGroup = new THREE.Group();
+                wGroup.add(new THREE.Mesh(tireGeo, tireMat), new THREE.Mesh(rimGeo, chromeMat));
+                wGroup.position.set(xPos, 0.39, zPos);
+                root.add(wGroup);
+                wheels.push(wGroup);
+            };
+
+            if (typeKey === 'motorcycle') {
+                [0.78, -0.78].forEach(wz => makeWheel(0, wz));
+            } else {
+                const wx = w / 2 - 0.04;
+                const wz = l * 0.33;
+                [[-wx, wz], [wx, wz], [-wx, -wz], [wx, -wz]].forEach(([xPos, zPos]) => makeWheel(xPos, zPos));
+            }
+
+            return { root, chassis, wheels, steeringWheelMesh, driverSeatAnchor };
+        }
+
+        function spawnVehicles() {
+            const types = Object.keys(VEHICLE_SPECS);
+
+            // 1. Parked Exotic Cars along Ocean Drive & Star Island Mansion
+            const parkedSpots = [
+                { x: 65.5, z: -30, rot: 0, type: 'supercar' },
+                { x: 65.5, z: 25, rot: 0, type: 'sportscar' },
+                { x: 65.5, z: 65, rot: 0, type: 'motorcycle' },
+                { x: 235, z: 12, rot: Math.PI / 2, type: 'supercar' },
+                { x: -66, z: 42, rot: Math.PI / 2, type: 'truck' },
+                { x: -66, z: 50, rot: Math.PI / 2, type: 'suv' },
+                { x: -14, z: -45, rot: 0, type: 'sedan' }
+            ];
+
+            parkedSpots.forEach(spot => {
+                const spec = VEHICLE_SPECS[spot.type];
+                const col = spec.colors[Math.floor(Math.random() * spec.colors.length)];
+                const model = createVehicleMesh(spot.type, col);
+                model.root.position.set(spot.x, 0, spot.z);
+                model.root.rotation.y = spot.rot;
+                scene.add(model.root);
+
+                vehicles.push({
+                    type: spot.type,
+                    spec,
+                    mesh: model.root,
+                    chassis: model.chassis,
+                    wheels: model.wheels,
+                    steeringWheel: model.steeringWheelMesh,
+                    seatAnchor: model.driverSeatAnchor,
+                    speed: 0,
+                    steerAngle: 0,
+                    isAI: false,
+                    isPlayerControlled: false
+                });
+            });
+
+            // 2. AI Traffic Vehicles driving on avenues & streets
+            for (let i = 0; i < 24; i++) {
+                const typeKey = types[i % types.length];
+                const spec = VEHICLE_SPECS[typeKey];
+                const col = spec.colors[i % spec.colors.length];
+                const model = createVehicleMesh(typeKey, col);
+
+                const onNorthSouth = i % 2 === 0;
+                let x, z, dirRot, axis, dirSign, roadCoord;
+                if (onNorthSouth) {
+                    roadCoord = ROAD_X[i % ROAD_X.length];
+                    dirSign = i % 4 === 0 ? 1 : -1;
+                    x = roadCoord + (dirSign === 1 ? 3.6 : -3.6);
+                    z = -180 + (i * 29) % 360;
+                    dirRot = dirSign === 1 ? 0 : Math.PI;
+                    axis = 'z';
+                } else {
+                    roadCoord = ROAD_Z[i % ROAD_Z.length];
+                    dirSign = i % 3 === 0 ? 1 : -1;
+                    z = roadCoord + (dirSign === 1 ? -3.6 : 3.6);
+                    x = -170 + (i * 23) % 220;
+                    dirRot = dirSign === 1 ? Math.PI / 2 : -Math.PI / 2;
+                    axis = 'x';
+                }
+
+                model.root.position.set(x, 0, z);
+                model.root.rotation.y = dirRot;
+                scene.add(model.root);
+
+                vehicles.push({
+                    type: typeKey,
+                    spec,
+                    mesh: model.root,
+                    chassis: model.chassis,
+                    wheels: model.wheels,
+                    steeringWheel: model.steeringWheelMesh,
+                    seatAnchor: model.driverSeatAnchor,
+                    speed: 14,
+                    steerAngle: 0,
+                    isAI: true,
+                    axis,
+                    dirSign,
+                    roadCoord,
+                    isPlayerControlled: false
+                });
+            }
+        }
+
+        /********************************************************************
+         * 6. ANATOMICALLY PROPORTIONED ARTICULATED HUMAN RIG (Player & NPCs)
+         ********************************************************************/
+        function createRealisticHuman(opts = {}) {
+            const {
+                shirtColor = 0x38bdf8,
+                jacketColor = 0xf8fafc,
+                pantsColor = 0xf1f5f9,
+                shoeColor = 0xffffff,
+                skinColor = '#e0ac69',
+                hairColor = 0x1c1917,
+                hairStyle = 0,
+                glasses = 'aviator',
+                hasJacket = false,
+                shortSleeves = false,
+                scale = 1.0
+            } = opts;
+
+            const group = new THREE.Group();
+            const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.55 });
+            const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.65 });
+            const jacketMat = new THREE.MeshStandardMaterial({ color: jacketColor, roughness: 0.5 });
+            const pantsMat = new THREE.MeshStandardMaterial({ color: pantsColor, roughness: 0.7 });
+            const shoeMat = new THREE.MeshStandardMaterial({ color: shoeColor, roughness: 0.4 });
+            const hairMat = new THREE.MeshStandardMaterial({ color: hairColor, roughness: 0.8 });
+
+            // Pelvis / Hips
+            const pelvis = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.20, 0.24, 12), pantsMat);
+            pelvis.scale.set(1.15, 1, 0.78);
+            pelvis.position.y = 0.92;
+            pelvis.castShadow = true;
+            group.add(pelvis);
+
+            // Sculpted Torso & Chest
+            const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.21, 0.56, 12), shirtMat);
+            torso.scale.set(1.18, 1, 0.72);
+            torso.position.y = 1.28;
+            torso.castShadow = true;
+            group.add(torso);
+
+            // Optional Open Jacket / Blazer Lapels
+            const jacketGroup = new THREE.Group();
+            if (hasJacket) {
+                const jLeft = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.57, 0.36), jacketMat);
+                jLeft.position.set(-0.18, 1.28, 0);
+                const jRight = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.57, 0.36), jacketMat);
+                jRight.position.set(0.18, 1.28, 0);
+                const jBack = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.57, 0.12), jacketMat);
+                jBack.position.set(0, 1.28, -0.14);
+                const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.12, 10), jacketMat);
+                collar.position.set(0, 1.56, -0.02);
+                jacketGroup.add(jLeft, jRight, jBack, collar);
+            }
+            group.add(jacketGroup);
+
+            // Neck & Sculpted Human Head
+            const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.095, 0.16, 10), skinMat);
+            neck.position.y = 1.60;
+            group.add(neck);
+
+            const headGroup = new THREE.Group();
+            headGroup.position.set(0, 1.79, 0);
+
+            const cranium = new THREE.Mesh(new THREE.SphereGeometry(0.19, 16, 14), skinMat);
+            cranium.scale.set(0.92, 1.12, 0.98);
+            cranium.castShadow = true;
+            headGroup.add(cranium);
+
+            // Nose, Eyes, Eyebrows, Mouth & Ears
+            const nose = new THREE.Mesh(new THREE.ConeGeometry(0.028, 0.075, 6), skinMat);
+            nose.rotation.x = Math.PI / 2 - 0.2;
+            nose.position.set(0, -0.01, 0.19);
+            headGroup.add(nose);
+
+            const eyeWhiteMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const pupilMat = new THREE.MeshBasicMaterial({ color: 0x1e293b });
+            [-0.065, 0.065].forEach(ex => {
+                const eye = new THREE.Mesh(new THREE.SphereGeometry(0.024, 8, 8), eyeWhiteMat);
+                eye.position.set(ex, 0.03, 0.165);
+                const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.013, 6, 6), pupilMat);
+                pupil.position.set(ex, 0.03, 0.182);
+                const brow = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.014, 0.02), hairMat);
+                brow.position.set(ex, 0.068, 0.172);
+                headGroup.add(eye, pupil, brow);
+            });
+
+            const mouth = new THREE.Mesh(
+                new THREE.BoxGeometry(0.065, 0.016, 0.02),
+                new THREE.MeshBasicMaterial({ color: 0x9f1239 })
+            );
+            mouth.position.set(0, -0.075, 0.165);
+            headGroup.add(mouth);
+
+            // Layered 3D Hairstyles
+            const hairGroup = new THREE.Group();
+            const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.198, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.58), hairMat);
+            hairCap.scale.set(0.95, 1.1, 1.02);
+            hairCap.rotation.x = -0.18;
+            hairCap.position.y = 0.02;
+            hairGroup.add(hairCap);
+
+            if (hairStyle === 0) {
+                // Textured Miami Quiff
+                const quiff = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.09, 0.18), hairMat);
+                quiff.position.set(0, 0.19, 0.08);
+                quiff.rotation.x = -0.25;
+                hairGroup.add(quiff);
+            } else if (hairStyle === 2) {
+                // Volumetric Curly Crop
+                for (let c = -1; c <= 1; c++) {
+                    const curl = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 8), hairMat);
+                    curl.position.set(c * 0.08, 0.18, 0.07);
+                    hairGroup.add(curl);
+                }
+            }
+            headGroup.add(hairGroup);
+
+            // Designer Eyewear (Gold Aviators or Wayfarers)
+            const glassesGroup = new THREE.Group();
+            if (glasses !== 'none') {
+                const frameMat = new THREE.MeshStandardMaterial({
+                    color: glasses === 'aviator' ? 0xfbbf24 : 0x111827,
+                    metalness: glasses === 'aviator' ? 0.9 : 0.2,
+                    roughness: 0.2
+                });
+                const lensMat = new THREE.MeshPhysicalMaterial({ color: 0x0f172a, roughness: 0.1, metalness: 0.8 });
+                [-0.068, 0.068].forEach(gx => {
+                    const lens = new THREE.Mesh(new THREE.BoxGeometry(0.082, 0.052, 0.02), lensMat);
+                    lens.position.set(gx, 0.032, 0.188);
+                    const rim = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.058, 0.015), frameMat);
+                    rim.position.set(gx, 0.032, 0.185);
+                    glassesGroup.add(lens, rim);
+                });
+                const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.012, 0.02), frameMat);
+                bridge.position.set(0, 0.045, 0.19);
+                glassesGroup.add(bridge);
+            }
+            headGroup.add(glassesGroup);
+            group.add(headGroup);
+
+            // Multi-Joint Articulated Arms (Shoulder -> Upper Arm -> Elbow -> Forearm -> Hand)
+            const sleeveMat = hasJacket ? jacketMat : (shortSleeves ? skinMat : shirtMat);
+            const makeArm = (sideSign) => {
+                const shoulder = new THREE.Group();
+                shoulder.position.set(sideSign * 0.34, 1.48, 0);
+
+                const upperArm = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.072, 0.062, 0.30, 10),
+                    shortSleeves && !hasJacket ? shirtMat : sleeveMat
+                );
+                upperArm.position.y = -0.14;
+                upperArm.castShadow = true;
+                shoulder.add(upperArm);
+
+                const elbow = new THREE.Group();
+                elbow.position.y = -0.28;
+                const forearm = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.06, 0.048, 0.28, 10),
+                    hasJacket ? jacketMat : skinMat
+                );
+                forearm.position.y = -0.14;
+                forearm.castShadow = true;
+
+                const hand = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 8), skinMat);
+                hand.position.y = -0.29;
+                elbow.add(forearm, hand);
+                shoulder.add(elbow);
+                group.add(shoulder);
+                return { shoulder, elbow };
+            };
+
+            const leftArmRig = makeArm(-1);
+            const rightArmRig = makeArm(1);
+
+            // Multi-Joint Articulated Legs (Hip -> Thigh -> Knee -> Calf -> Sneaker)
+            const makeLeg = (sideSign) => {
+                const hip = new THREE.Group();
+                hip.position.set(sideSign * 0.13, 0.84, 0);
+
+                const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.098, 0.078, 0.42, 10), pantsMat);
+                thigh.position.y = -0.21;
+                thigh.castShadow = true;
+                hip.add(thigh);
+
+                const knee = new THREE.Group();
+                knee.position.y = -0.42;
+
+                const calf = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.076, 0.058, 0.38, 10),
+                    shortSleeves ? skinMat : pantsMat
+                );
+                calf.position.y = -0.19;
+                calf.castShadow = true;
+
+                const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.09, 0.25), shoeMat);
+                shoe.position.set(0, -0.39, 0.04);
+                shoe.castShadow = true;
+
+                knee.add(calf, shoe);
+                hip.add(knee);
+                group.add(hip);
+                return { hip, knee };
+            };
+
+            const leftLegRig = makeLeg(-1);
+            const rightLegRig = makeLeg(1);
+
+            group.scale.setScalar(scale);
+
+            return {
+                group,
+                headGroup,
+                torso,
+                leftArm: leftArmRig.shoulder,
+                rightArm: rightArmRig.shoulder,
+                leftElbow: leftArmRig.elbow,
+                rightElbow: rightArmRig.elbow,
+                leftLeg: leftLegRig.hip,
+                rightLeg: rightLegRig.hip,
+                leftThigh: leftLegRig.hip,
+                rightThigh: rightLegRig.hip,
+                leftCalf: leftLegRig.knee,
+                rightCalf: rightLegRig.knee
+            };
+        }
+
+        function createPlayer() {
+            const preset = PLAYER_OUTFITS[playerConfig.outfitIndex];
+            const model = createRealisticHuman({
+                shirtColor: preset.shirt,
+                jacketColor: preset.jacket,
+                pantsColor: preset.pants,
+                shoeColor: preset.shoes,
+                skinColor: playerConfig.skinColor,
+                hairColor: HAIR_COLORS[playerConfig.hairStyle % HAIR_COLORS.length],
+                hairStyle: playerConfig.hairStyle,
+                glasses: playerConfig.glasses,
+                hasJacket: preset.hasJacket,
+                shortSleeves: preset.shortSleeves
+            });
+
+            if (typeof player !== 'undefined' && player && player.mesh) {
+                const currentVeh = player.inVehicle;
+                if (currentVeh && currentVeh.seatAnchor) {
+                    currentVeh.seatAnchor.remove(player.mesh);
+                    currentVeh.seatAnchor.add(model.group);
+                    model.group.position.set(0, 0, 0);
+                    model.group.rotation.set(0, 0, 0);
+                    player.mesh = model.group;
+                    player.limbs = model;
+                    applyDrivingCharacterPose(currentVeh, 0, 0);
+                } else {
+                    model.group.position.copy(player.mesh.position);
+                    model.group.rotation.copy(player.mesh.rotation);
+                    model.group.visible = true;
+                    scene.remove(player.mesh);
+                    player.mesh = model.group;
+                    player.limbs = model;
+                    scene.add(model.group);
+                }
+            } else {
+                model.group.position.copy(outsideWorldPos);
+                scene.add(model.group);
+                window.player = {
+                    mesh: model.group,
+                    limbs: model,
+                    velY: 0,
+                    isGrounded: true,
+                    inVehicle: null,
+                    animTime: 0
+                };
+            }
+        }
+
+        function createDogMesh(coatHex) {
+            const dog = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: coatHex, roughness: 0.75 });
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.26, 0.58), mat);
+            body.position.y = 0.34;
+            body.castShadow = true;
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.26), mat);
+            head.position.set(0, 0.48, 0.32);
+            const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 0.25), mat);
+            tail.position.set(0, 0.46, -0.32);
+            tail.rotation.x = -0.6;
+            dog.add(body, head, tail);
+
+            const legs = [];
+            [[-0.1, 0.2], [0.1, 0.2], [-0.1, -0.2], [0.1, -0.2]].forEach(([lx, lz]) => {
+                const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.035, 0.24), mat);
+                leg.position.set(lx, 0.12, lz);
+                dog.add(leg);
+                legs.push(leg);
+            });
+            return { group: dog, legs, tail };
+        }
+
+        function spawnPedestrians() {
+            const outfits = [
+                { shirt: 0xf43f5e, jacket: 0xffffff, pants: 0xf8fafc, skin: '#f3cfb3', hair: 0x1c1917, jacketOn: false, short: true },
+                { shirt: 0x0ea5e9, jacket: 0x1e293b, pants: 0x1e293b, skin: '#8d5524', hair: 0x111111, jacketOn: true, short: false },
+                { shirt: 0xfbbf24, jacket: 0xfbbf24, pants: 0x334155, skin: '#e0ac69', hair: 0x451a03, jacketOn: false, short: true },
+                { shirt: 0xa855f7, jacket: 0xf8fafc, pants: 0xf1f5f9, skin: '#c68642', hair: 0x222222, jacketOn: true, short: false },
+                { shirt: 0x10b981, jacket: 0x10b981, pants: 0xe2e8f0, skin: '#f3cfb3', hair: 0x92400e, jacketOn: false, short: true }
+            ];
+
+            for (let i = 0; i < 48; i++) {
+                const pal = outfits[i % outfits.length];
+                const model = createRealisticHuman({
+                    shirtColor: pal.shirt,
+                    jacketColor: pal.jacket,
+                    pantsColor: pal.pants,
+                    skinColor: pal.skin,
+                    hairColor: pal.hair,
+                    hairStyle: i % 3,
+                    glasses: i % 2 === 0 ? 'aviator' : (i % 3 === 0 ? 'wayfarer' : 'none'),
+                    hasJacket: pal.jacketOn,
+                    shortSleeves: pal.short,
+                    scale: 0.94 + (i % 4) * 0.035
+                });
+
+                const avenueX = ROAD_X[i % ROAD_X.length] + (i % 2 === 0 ? 10.2 : -10.2);
+                const zPos = -185 + (i * 15) % 370;
+
+                model.group.position.set(avenueX, 0.28, zPos);
+                const dir = i % 2 === 0 ? 0 : Math.PI;
+                model.group.rotation.y = dir;
+                scene.add(model.group);
+
+                const npcObj = {
+                    mesh: model.group,
+                    limbs: model,
+                    state: 'walk',
+                    timer: 5 + Math.random() * 8,
+                    speed: 2.3 + Math.random() * 0.6,
+                    animPhase: Math.random() * 10,
+                    dog: null
+                };
+
+                // Attach an animated dog on a leash to every 7th pedestrian
+                if (i % 7 === 0) {
+                    const dogModel = createDogMesh(i % 14 === 0 ? 0xd97706 : 0xf8fafc);
+                    dogModel.group.position.set(0.65, 0, 0.75);
+                    model.group.add(dogModel.group);
+                    npcObj.dog = dogModel;
+                }
+
+                // Spawn a companion friend walking side-by-side for every 5th pedestrian
+                if (i % 5 === 0 && i < 35) {
+                    const pal2 = outfits[(i + 2) % outfits.length];
+                    const friend = createRealisticHuman({
+                        shirtColor: pal2.shirt,
+                        pantsColor: pal2.pants,
+                        skinColor: pal2.skin,
+                        hairColor: pal2.hair,
+                        hairStyle: (i + 1) % 3,
+                        glasses: 'wayfarer',
+                        shortSleeves: true,
+                        scale: 0.96
+                    });
+                    friend.group.position.set(avenueX + 0.95, 0.28, zPos + 0.2);
+                    friend.group.rotation.y = dir;
+                    scene.add(friend.group);
+                    npcs.push({
+                        mesh: friend.group,
+                        limbs: friend,
+                        state: 'walk',
+                        timer: npcObj.timer,
+                        speed: npcObj.speed,
+                        animPhase: npcObj.animPhase + 1.2,
+                        dog: null
+                    });
+                }
+
+                npcs.push(npcObj);
+            }
+
+            // Spawn Beach & Boardwalk Cyclists
+            for (let b = 0; b < 6; b++) {
+                const bikeGroup = new THREE.Group();
+                const frameMat = new THREE.MeshStandardMaterial({ color: b % 2 === 0 ? 0x0ea5e9 : 0xf43f5e, metalness: 0.8 });
+                const wheelGeo = new THREE.TorusGeometry(0.32, 0.04, 8, 16);
+                wheelGeo.rotateY(Math.PI / 2);
+                const wFront = new THREE.Mesh(wheelGeo, new THREE.MeshStandardMaterial({ color: 0x1e293b }));
+                wFront.position.set(0, 0.34, 0.55);
+                const wBack = wFront.clone();
+                wBack.position.set(0, 0.34, -0.55);
+                const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.1), frameMat);
+                bar.rotation.x = Math.PI / 2;
+                bar.position.set(0, 0.55, 0);
+                bikeGroup.add(wFront, wBack, bar);
+
+                const rider = createRealisticHuman({
+                    shirtColor: b % 2 === 0 ? 0xfacc15 : 0x38bdf8,
+                    pantsColor: 0x1e293b,
+                    skinColor: '#e0ac69',
+                    hairStyle: b % 3,
+                    glasses: 'aviator',
+                    shortSleeves: true
+                });
+                rider.group.position.set(0, 0.12, -0.08);
+                rider.torso.rotation.x = 0.25;
+                rider.leftArm.rotation.x = -0.75;
+                rider.rightArm.rotation.x = -0.75;
+                bikeGroup.add(rider.group);
+
+                const zStart = -150 + b * 55;
+                bikeGroup.position.set(74 + (b % 2 === 0 ? 1.8 : -1.8), 0.28, zStart);
+                bikeGroup.rotation.y = b % 2 === 0 ? 0 : Math.PI;
+                scene.add(bikeGroup);
+
+                cyclists.push({
+                    group: bikeGroup,
+                    rider,
+                    dirSign: b % 2 === 0 ? 1 : -1,
+                    speed: 7.8,
+                    phase: b * 2
+                });
+            }
+        }
+
+        function animateCharacterLimbs(limbs, phase, amplitude = 0.7, isSprinting = false) {
+            // Reset any driving-specific limb rotations
+            limbs.leftLeg.rotation.z = 0;
+            limbs.rightLeg.rotation.z = 0;
+            limbs.leftArm.rotation.z = 0;
+            limbs.rightArm.rotation.z = 0;
+            limbs.headGroup.rotation.set(0, 0, 0);
+
+            if (amplitude === 0) {
+                // Natural Breathing Idle Pose
+                const breath = Math.sin(clock.elapsedTime * 2.5) * 0.03;
+                limbs.leftLeg.rotation.x = 0;
+                limbs.rightLeg.rotation.x = 0;
+                limbs.leftCalf.rotation.x = 0;
+                limbs.rightCalf.rotation.x = 0;
+                limbs.leftArm.rotation.x = breath;
+                limbs.rightArm.rotation.x = -breath;
+                limbs.leftElbow.rotation.x = -0.15;
+                limbs.rightElbow.rotation.x = -0.15;
+                limbs.torso.rotation.x = 0;
+                limbs.torso.rotation.y = 0;
+                limbs.torso.rotation.z = 0;
+                return;
+            }
+
+            // In +Z forward character local space: negative X rotation swings thigh/arm forward (+Z)
+            const lSwing = Math.sin(phase) * amplitude;
+            const rSwing = -Math.sin(phase) * amplitude;
+
+            limbs.leftLeg.rotation.x = -lSwing;
+            limbs.rightLeg.rotation.x = -rSwing;
+            // Realistic knee bend (+X bends calf backward toward -Z)
+            limbs.leftCalf.rotation.x = Math.max(0.05, Math.abs(lSwing) * 0.78);
+            limbs.rightCalf.rotation.x = Math.max(0.05, Math.abs(rSwing) * 0.78);
+
+            limbs.leftArm.rotation.x = -rSwing * 0.75;
+            limbs.rightArm.rotation.x = -lSwing * 0.75;
+            limbs.leftElbow.rotation.x = isSprinting ? -0.85 : -0.32;
+            limbs.rightElbow.rotation.x = isSprinting ? -0.85 : -0.32;
+            limbs.torso.rotation.x = isSprinting ? 0.14 : 0.04;
+            limbs.torso.rotation.y = Math.sin(phase) * 0.08;
+            limbs.torso.rotation.z = 0;
+        }
+
+        function applyDrivingCharacterPose(vehicle, steerInput = 0, accelInput = 0) {
+            if (!player || !player.limbs) return;
+            const limbs = player.limbs;
+
+            if (vehicle.type === 'motorcycle') {
+                // Straddling motorcycle seat, leaning forward, hands gripping handlebars, feet on side pegs
+                player.mesh.scale.setScalar(0.95);
+                limbs.torso.rotation.x = 0.36 - accelInput * 0.06;
+                limbs.torso.rotation.y = steerInput * 0.12;
+                limbs.torso.rotation.z = -steerInput * 0.15;
+                limbs.headGroup.rotation.x = -0.25;
+                limbs.headGroup.rotation.y = steerInput * 0.25;
+
+                // Thighs spread outward straddling the bike tank and bent forward; calves angled back to pegs
+                limbs.leftLeg.rotation.x = -1.05;
+                limbs.rightLeg.rotation.x = -1.05;
+                limbs.leftLeg.rotation.z = -0.26;
+                limbs.rightLeg.rotation.z = 0.26;
+                limbs.leftCalf.rotation.x = 1.32;
+                limbs.rightCalf.rotation.x = 1.32;
+
+                // Arms reaching forward to grip the handlebars with steering articulation
+                limbs.leftArm.rotation.x = -1.18 + steerInput * 0.16;
+                limbs.rightArm.rotation.x = -1.18 - steerInput * 0.16;
+                limbs.leftArm.rotation.z = 0.16;
+                limbs.rightArm.rotation.z = -0.16;
+                limbs.leftElbow.rotation.x = -0.38;
+                limbs.rightElbow.rotation.x = -0.38;
+            } else {
+                // Seated in left-side car driver's seat behind the steering wheel
+                player.mesh.scale.setScalar(0.86);
+                limbs.torso.rotation.x = -0.08 - accelInput * 0.05;
+                limbs.torso.rotation.y = steerInput * 0.08;
+                limbs.torso.rotation.z = -steerInput * 0.06;
+                limbs.headGroup.rotation.x = 0.04;
+                limbs.headGroup.rotation.y = steerInput * 0.22;
+
+                // Seated leg posture reaching toward pedals
+                limbs.leftLeg.rotation.x = -1.42;
+                limbs.rightLeg.rotation.x = -1.42;
+                limbs.leftLeg.rotation.z = -0.06;
+                limbs.rightLeg.rotation.z = 0.06;
+                limbs.leftCalf.rotation.x = 1.15;
+                limbs.rightCalf.rotation.x = 1.10 - accelInput * 0.12;
+
+                // Arms reaching forward to hold the rotating steering wheel
+                limbs.leftArm.rotation.x = -1.12 - steerInput * 0.28;
+                limbs.rightArm.rotation.x = -1.12 + steerInput * 0.28;
+                limbs.leftArm.rotation.z = 0.22;
+                limbs.rightArm.rotation.z = -0.22;
+                limbs.leftElbow.rotation.x = -0.45;
+                limbs.rightElbow.rotation.x = -0.45;
+            }
+        }
+
+        /********************************************************************
+         * 7. INPUT, WARDROBE UI, CAMERA & COLLISION DETECTION
+         ********************************************************************/
+        function setupControls() {
+            const modal = document.getElementById('welcome-modal');
+            const startBtn = document.getElementById('start-game-btn');
+            const canvas = document.getElementById('game-canvas');
+            const wardrobeModal = document.getElementById('wardrobe-modal');
+            const sensSlider = document.getElementById('sens-slider');
+            const sensValue = document.getElementById('sens-value');
+
+            sensSlider?.addEventListener('input', e => {
+                mouseSensitivity = parseFloat(e.target.value) || 1.0;
+                if (sensValue) sensValue.textContent = `${mouseSensitivity.toFixed(1)}x`;
+            });
+
+            startBtn.addEventListener('click', () => {
+                modal.classList.add('hidden');
+                audio.init();
+                canvas.requestPointerLock?.();
+            });
+
+            canvas.addEventListener('click', () => {
+                if (modal.classList.contains('hidden') && wardrobeModal.classList.contains('hidden') && !isPointerLocked) {
+                    audio.init();
+                    canvas.requestPointerLock?.();
+                }
+            });
+
+            document.addEventListener('pointerlockchange', () => {
+                isPointerLocked = document.pointerLockElement === canvas;
+            });
+
+            // Also support click-and-drag 360° camera rotation when pointer lock is not active
+            let isDraggingMouse = false;
+            canvas.addEventListener('mousedown', () => { isDraggingMouse = true; });
+            window.addEventListener('mouseup', () => { isDraggingMouse = false; });
+
+            document.addEventListener('mousemove', e => {
+                if (!isPointerLocked && !isDraggingMouse) return;
+                lastMouseMoveTime = performance.now();
+                // Full unrestricted 360-degree horizontal rotation + smooth vertical pitch limits
+                camYaw -= e.movementX * 0.0028 * mouseSensitivity;
+                camPitch = Math.max(-0.12, Math.min(1.28, camPitch + e.movementY * 0.0022 * mouseSensitivity));
+            });
+
+            window.addEventListener('keydown', e => {
+                const code = e.code;
+                if (code === 'KeyW' || code === 'ArrowUp') keys.w = true;
+                if (code === 'KeyS' || code === 'ArrowDown') keys.s = true;
+                if (code === 'KeyA' || code === 'ArrowLeft') keys.a = true;
+                if (code === 'KeyD' || code === 'ArrowRight') keys.d = true;
+                if (code === 'ShiftLeft' || code === 'ShiftRight') keys.shift = true;
+                if (code === 'Space') keys.space = true;
+                if (code === 'KeyE') handleEnterExitVehicle();
+                if (code === 'KeyH') triggerVehicleHorn();
+                if (code === 'KeyC') toggleWardrobeMenu();
+            });
+
+            window.addEventListener('keyup', e => {
+                const code = e.code;
+                if (code === 'KeyW' || code === 'ArrowUp') keys.w = false;
+                if (code === 'KeyS' || code === 'ArrowDown') keys.s = false;
+                if (code === 'KeyA' || code === 'ArrowLeft') keys.a = false;
+                if (code === 'KeyD' || code === 'ArrowRight') keys.d = false;
+                if (code === 'ShiftLeft' || code === 'ShiftRight') keys.shift = false;
+                if (code === 'Space') keys.space = false;
+            });
+
+            setupWardrobeUI();
+        }
+
+        function updateDrivingVehicle(v, dt) {
+            const spec = v.spec;
+            let throttle = 0;
+            let steering = 0;
+
+            if (keys.w) throttle = 1;
+            if (keys.s) throttle = -1;
+            if (keys.a) steering = 1;
+            if (keys.d) steering = -1;
+
+            if (throttle !== 0) {
+                v.speed += throttle * spec.accel * dt;
+                v.speed = Math.max(-spec.maxSpeed * 0.4, Math.min(spec.maxSpeed, v.speed));
+            } else {
+                v.speed *= 0.96;
+            }
+
+            if (keys.space) {
+                v.speed *= 0.88;
+                audio.playTireScreech();
+            }
+
+            if (Math.abs(v.speed) > 0.5) {
+                const turnFactor = (v.speed / spec.maxSpeed) * spec.turnSpeed * dt * steering;
+                v.mesh.rotation.y += turnFactor;
+                v.steerAngle = steering * 0.55;
+            } else {
+                v.steerAngle *= 0.8;
+            }
+
+            const moveAngle = v.mesh.rotation.y;
+            const dx = Math.sin(moveAngle) * v.speed * dt;
+            const dz = Math.cos(moveAngle) * v.speed * dt;
+
+            const nextX = v.mesh.position.x + dx;
+            const nextZ = v.mesh.position.z + dz;
+
+            if (!checkSolidCollision(nextX, nextZ, 1.8)) {
+                v.mesh.position.x = nextX;
+                v.mesh.position.z = nextZ;
+            } else {
+                v.speed *= -0.3;
+            }
+
+            // Rotate wheels
+            v.wheels.forEach(w => {
+                w.rotation.x += v.speed * dt * 0.8;
+            });
+            if (v.steeringWheel) {
+                v.steeringWheel.rotation.z = v.steerAngle * 1.5;
+            }
+
+            applyDrivingCharacterPose(v, steering, throttle);
+            audio.updateEngine(true, Math.abs(v.speed) / spec.maxSpeed, spec.pitch);
+
+            const speedKmh = Math.round(Math.abs(v.speed) * 3.2);
+            document.getElementById('speed-value').textContent = speedKmh;
+            const rpmPercent = Math.min(100, (Math.abs(v.speed) / spec.maxSpeed) * 100);
+            document.getElementById('rpm-bar').style.width = `${rpmPercent}%`;
+        }
+
+        function updateTrafficAndLights(dt, elapsed) {
+            const lightColorIdx = Math.floor(elapsed / 5) % 2;
+
+            vehicles.forEach(v => {
+                if (!v.isAI) return;
+
+                if (v.axis === 'z') {
+                    v.mesh.position.z += v.dirSign * v.speed * dt;
+                    if (v.mesh.position.z > 210) v.mesh.position.z = -210;
+                    if (v.mesh.position.z < -210) v.mesh.position.z = 210;
+                } else {
+                    v.mesh.position.x += v.dirSign * v.speed * dt;
+                    if (v.mesh.position.x > 210) v.mesh.position.x = -210;
+                    if (v.mesh.position.x < -210) v.mesh.position.x = 210;
+                }
+
+                v.wheels.forEach(w => {
+                    w.rotation.x += v.speed * dt * 0.6;
+                });
+            });
+
+            streetLightBulbs.forEach((bulb, bIdx) => {
+                const lit = lightColorIdx === 0;
+                bulb.material.color.setHex(lit ? 0xfef08a : 0xef4444);
+            });
+        }
+
+        function triggerVehicleHorn() {
+            if (!player.inVehicle) return;
+            audio.playHorn(player.inVehicle.type === 'truck' ? 190 : 350);
+            // Make nearby NPCs panic/react
+            npcs.forEach(npc => {
+                if (npc.mesh.position.distanceTo(player.inVehicle.mesh.position) < 22) {
+                    npc.state = 'flee';
+                    npc.timer = 5;
+                }
+            });
+        }
+
+        function handleEnterExitVehicle() {
+            audio.init();
+            if (player.inVehicle) {
+                // Exit current vehicle and detach player back to world space
+                const v = player.inVehicle;
+                v.isPlayerControlled = false;
+                if (v.seatAnchor) {
+                    v.seatAnchor.remove(player.mesh);
+                }
+                scene.add(player.mesh);
+                player.mesh.scale.setScalar(1.0);
+                const exitOffset = new THREE.Vector3(-2.3, 0.28, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), v.mesh.rotation.y);
+                player.mesh.position.copy(v.mesh.position).add(exitOffset);
+                player.mesh.rotation.set(0, v.mesh.rotation.y, 0);
+                player.mesh.visible = true;
+                player.inVehicle = null;
+                animateCharacterLimbs(player.limbs, 0, 0, false);
+
+                document.getElementById('speedometer-panel').classList.add('hidden');
+                document.getElementById('status-mode').textContent = 'On Foot • Exploring';
+                audio.updateEngine(false, 0);
+                return;
+            }
+
+            // Find closest vehicle within 6.5 units
+            let closest = null;
+            let minDist = 6.5;
+            vehicles.forEach(v => {
+                const d = v.mesh.position.distanceTo(player.mesh.position);
+                if (d < minDist) {
+                    minDist = d;
+                    closest = v;
+                }
+            });
+
+            if (closest) {
+                if (closest.isAI) {
+                    closest.isAI = false;
+                    addWantedStar(1);
+                    playerCash += 150;
+                    document.getElementById('cash-display').textContent = `$${playerCash.toLocaleString()}`;
+                    showToast(`Hijacked ${closest.spec.name}! +$150 Street Bonus`);
+                } else {
+                    showToast(`Driving ${closest.spec.name}`);
+                }
+
+                player.inVehicle = closest;
+                closest.isPlayerControlled = true;
+
+                // Keep player character VISIBLE and seated inside the vehicle/motorcycle
+                scene.remove(player.mesh);
+                closest.seatAnchor.add(player.mesh);
+                player.mesh.position.set(0, 0, 0);
+                player.mesh.rotation.set(0, 0, 0);
+                player.mesh.visible = true;
+                applyDrivingCharacterPose(closest, 0, 0);
+
+                camYaw = closest.mesh.rotation.y + Math.PI;
+                lastMouseMoveTime = performance.now();
+
+                document.getElementById('speedometer-panel').classList.remove('hidden');
+                document.getElementById('veh-title').textContent = closest.spec.name;
+                document.getElementById('veh-class-badge').textContent = closest.spec.badge;
+                document.getElementById('status-mode').textContent = `Driving • ${closest.spec.badge}`;
+                document.getElementById('interact-prompt').classList.add('hidden');
+            }
+        }
+
+        function checkSolidCollision(x, z, radius = 0.65) {
+            // Check building & prop bounding boxes
+            for (let i = 0; i < colliders.length; i++) {
+                const c = colliders[i];
+                if (x + radius > c.minX && x - radius < c.maxX && z + radius > c.minZ && z - radius < c.maxZ) {
+                    return true;
+                }
+            }
+            // Check Canal Water gap (X between -34.5 and -29.8 unless on a street bridge)
+            if (x > -34.8 && x < -29.6) {
+                const onBridge = ROAD_Z.some(rz => Math.abs(z - rz) < ROAD_WIDTH / 2 + 2);
+                if (!onBridge) return true;
+            }
+            // Check Ocean water boundary (unless on Venetian Causeway Z between -7.5 and 7.5 or Star Island)
+            if (x > 136) {
+                const onCauseway = Math.abs(z) < 7.2 && x <= 195;
+                const distStarIsland = Math.hypot(x - 240, z);
+                if (!onCauseway && distStarIsland > 56) return true;
+            }
+            // Outer world bounds
+            if (x < -245 || x > 300 || z < -230 || z > 230) return true;
+            return false;
+        }
+
+        /********************************************************************
+         * 6. ANATOMICALLY PROPORTIONED ARTICULATED HUMAN RIG (10 3D Hairstyles)
+         ********************************************************************/
+        function create3DHairstyleMesh(styleIdx, hairMat) {
+            const group = new THREE.Group();
+            const baseCap = new THREE.Mesh(new THREE.SphereGeometry(0.196, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.58), hairMat);
+            baseCap.scale.set(0.95, 1.1, 1.02);
+            baseCap.rotation.x = -0.18;
+            baseCap.position.y = 0.02;
+            group.add(baseCap);
+
+            switch(styleIdx) {
+                case 0: // Textured Quiff
+                    const quiff = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.09, 0.18), hairMat);
+                    quiff.position.set(0, 0.19, 0.08);
+                    quiff.rotation.x = -0.25;
+                    group.add(quiff);
+                    break;
+                case 1: // Short Fade (trimmed sides)
+                    const topCrop = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.05, 0.28), hairMat);
+                    topCrop.position.set(0, 0.18, 0.02);
+                    group.add(topCrop);
+                    break;
+                case 2: // Taper Fade
+                    const taper = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.14, 10), hairMat);
+                    taper.position.set(0, 0.16, 0.04);
+                    group.add(taper);
+                    break;
+                case 3: // Curly Crop
+                    for (let c = -1; c <= 1; c++) {
+                        const curl = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 8), hairMat);
+                        curl.position.set(c * 0.08, 0.18, 0.07);
+                        group.add(curl);
+                    }
+                    break;
+                case 4: // Dreads (hanging locs)
+                    for (let d = -3; d <= 3; d++) {
+                        const loc = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.016, 0.35, 6), hairMat);
+                        loc.position.set(d * 0.06, -0.04, -0.06 + Math.abs(d) * 0.02);
+                        loc.rotation.x = 0.22;
+                        group.add(loc);
+                    }
+                    break;
+                case 5: // Braids (cornrows back)
+                    for (let b = -2; b <= 2; b++) {
+                        const braid = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.03, 0.32), hairMat);
+                        braid.position.set(b * 0.06, 0.14, -0.02);
+                        group.add(braid);
+                    }
+                    break;
+                case 6: // Afro (large rounded volume)
+                    const afro = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 12), hairMat);
+                    afro.scale.set(1.15, 1.0, 1.15);
+                    afro.position.set(0, 0.12, 0.02);
+                    group.add(afro);
+                    break;
+                case 7: // Buzz Cut (ultra low uniform cap)
+                    const buzz = new THREE.Mesh(new THREE.SphereGeometry(0.188, 12, 10), hairMat);
+                    buzz.scale.set(1.01, 1.05, 1.01);
+                    group.add(buzz);
+                    break;
+                case 8: // Messy Flow (wavy strands)
+                    const flow = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.08, 0.32), hairMat);
+                    flow.position.set(0, 0.17, 0.02);
+                    flow.rotation.z = 0.1;
+                    group.add(flow);
+                    break;
+                case 9: // Slicked Back
+                    const slick = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.06, 0.28), hairMat);
+                    slick.position.set(0, 0.18, -0.02);
+                    group.add(slick);
+                    break;
+            }
+            return group;
+        }
+
+        function createRealisticHuman(opts = {}) {
+            const {
+                shirtColor = 0x38bdf8,
+                jacketColor = 0xf8fafc,
+                pantsColor = 0xf1f5f9,
+                shoeColor = 0xffffff,
+                skinColor = '#e0ac69',
+                hairColor = 0x1c1917,
+                hairStyle = 0,
+                glasses = 'aviator',
+                hasJacket = false,
+                shortSleeves = false,
+                scale = 1.0
+            } = opts;
+
+            const group = new THREE.Group();
+            const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.55 });
+            const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.65 });
+            const jacketMat = new THREE.MeshStandardMaterial({ color: jacketColor, roughness: 0.5 });
+            const pantsMat = new THREE.MeshStandardMaterial({ color: pantsColor, roughness: 0.7 });
+            const shoeMat = new THREE.MeshStandardMaterial({ color: shoeColor, roughness: 0.4 });
+            const hairMat = new THREE.MeshStandardMaterial({ color: hairColor, roughness: 0.8 });
+
+            const pelvis = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.20, 0.24, 12), pantsMat);
+            pelvis.scale.set(1.15, 1, 0.78);
+            pelvis.position.y = 0.92;
+            pelvis.castShadow = true;
+            group.add(pelvis);
+
+            const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.21, 0.56, 12), shirtMat);
+            torso.scale.set(1.18, 1, 0.72);
+            torso.position.y = 1.28;
+            torso.castShadow = true;
+            group.add(torso);
+
+            const jacketGroup = new THREE.Group();
+            if (hasJacket) {
+                const jLeft = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.57, 0.36), jacketMat);
+                jLeft.position.set(-0.18, 1.28, 0);
+                const jRight = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.57, 0.36), jacketMat);
+                jRight.position.set(0.18, 1.28, 0);
+                const jBack = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.57, 0.12), jacketMat);
+                jBack.position.set(0, 1.28, -0.14);
+                const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.12, 10), jacketMat);
+                collar.position.set(0, 1.56, -0.02);
+                jacketGroup.add(jLeft, jRight, jBack, collar);
+            }
+            group.add(jacketGroup);
+
+            const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.095, 0.16, 10), skinMat);
+            neck.position.y = 1.60;
+            group.add(neck);
+
+            const headGroup = new THREE.Group();
+            headGroup.position.set(0, 1.79, 0);
+
+            const cranium = new THREE.Mesh(new THREE.SphereGeometry(0.19, 16, 14), skinMat);
+            cranium.scale.set(0.92, 1.12, 0.98);
+            cranium.castShadow = true;
+            headGroup.add(cranium);
+
+            const nose = new THREE.Mesh(new THREE.ConeGeometry(0.028, 0.075, 6), skinMat);
+            nose.rotation.x = Math.PI / 2 - 0.2;
+            nose.position.set(0, -0.01, 0.19);
+            headGroup.add(nose);
+
+            const eyeWhiteMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const pupilMat = new THREE.MeshBasicMaterial({ color: 0x1e293b });
+            [-0.065, 0.065].forEach(ex => {
+                const eye = new THREE.Mesh(new THREE.SphereGeometry(0.024, 8, 8), eyeWhiteMat);
+                eye.position.set(ex, 0.03, 0.165);
+                const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.013, 6, 6), pupilMat);
+                pupil.position.set(ex, 0.03, 0.182);
+                headGroup.add(eye, pupil);
+            });
+
+            const mouth = new THREE.Mesh(
+                new THREE.BoxGeometry(0.065, 0.016, 0.02),
+                new THREE.MeshBasicMaterial({ color: 0x9f1239 })
+            );
+            mouth.position.set(0, -0.075, 0.165);
+            headGroup.add(mouth);
+
+            // Add detailed 3D Hairstyle
+            const hairstyleMesh = create3DHairstyleMesh(hairStyle, hairMat);
+            headGroup.add(hairstyleMesh);
+
+            const glassesGroup = new THREE.Group();
+            if (glasses !== 'none') {
+                const frameMat = new THREE.MeshStandardMaterial({
+                    color: glasses === 'aviator' ? 0xfbbf24 : 0x111827,
+                    metalness: glasses === 'aviator' ? 0.9 : 0.2,
+                    roughness: 0.2
+                });
+                const lensMat = new THREE.MeshPhysicalMaterial({ color: 0x0f172a, roughness: 0.1, metalness: 0.8 });
+                [-0.068, 0.068].forEach(gx => {
+                    const lens = new THREE.Mesh(new THREE.BoxGeometry(0.082, 0.052, 0.02), lensMat);
+                    lens.position.set(gx, 0.032, 0.188);
+                    const rim = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.058, 0.015), frameMat);
+                    rim.position.set(gx, 0.032, 0.185);
+                    glassesGroup.add(lens, rim);
+                });
+                const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.012, 0.02), frameMat);
+                bridge.position.set(0, 0.045, 0.19);
+                glassesGroup.add(bridge);
+            }
+            headGroup.add(glassesGroup);
+            group.add(headGroup);
+
+            const sleeveMat = hasJacket ? jacketMat : (shortSleeves ? skinMat : shirtMat);
+            const makeArm = (sideSign) => {
+                const shoulder = new THREE.Group();
+                shoulder.position.set(sideSign * 0.34, 1.48, 0);
+
+                const upperArm = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.072, 0.062, 0.30, 10),
+                    shortSleeves && !hasJacket ? shirtMat : sleeveMat
+                );
+                upperArm.position.y = -0.14;
+                upperArm.castShadow = true;
+                shoulder.add(upperArm);
+
+                const elbow = new THREE.Group();
+                elbow.position.y = -0.28;
+                const forearm = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.06, 0.048, 0.28, 10),
+                    hasJacket ? jacketMat : skinMat
+                );
+                forearm.position.y = -0.14;
+                forearm.castShadow = true;
+
+                const hand = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 8), skinMat);
+                hand.position.y = -0.29;
+                elbow.add(forearm, hand);
+                shoulder.add(elbow);
+                group.add(shoulder);
+                return { shoulder, elbow };
+            };
+
+            const leftArmRig = makeArm(-1);
+            const rightArmRig = makeArm(1);
+
+            const makeLeg = (sideSign) => {
+                const hip = new THREE.Group();
+                hip.position.set(sideSign * 0.13, 0.84, 0);
+
+                const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.098, 0.078, 0.42, 10), pantsMat);
+                thigh.position.y = -0.21;
+                thigh.castShadow = true;
+                hip.add(thigh);
+
+                const knee = new THREE.Group();
+                knee.position.y = -0.42;
+
+                const calf = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.076, 0.058, 0.38, 10),
+                    shortSleeves ? skinMat : pantsMat
+                );
+                calf.position.y = -0.19;
+                calf.castShadow = true;
+
+                const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.09, 0.25), shoeMat);
+                shoe.position.set(0, -0.39, 0.04);
+                shoe.castShadow = true;
+
+                knee.add(calf, shoe);
+                hip.add(knee);
+                group.add(hip);
+                return { hip, knee };
+            };
+
+            const leftLegRig = makeLeg(-1);
+            const rightLegRig = makeLeg(1);
+
+            group.scale.setScalar(scale);
+
+            return {
+                group,
+                headGroup,
+                torso,
+                leftArm: leftArmRig.shoulder,
+                rightArm: rightArmRig.shoulder,
+                leftElbow: leftArmRig.elbow,
+                rightElbow: rightArmRig.elbow,
+                leftLeg: leftLegRig.hip,
+                rightLeg: rightLegRig.hip,
+                leftThigh: leftLegRig.hip,
+                rightThigh: rightLegRig.hip,
+                leftCalf: leftLegRig.knee,
+                rightCalf: rightLegRig.knee
+            };
+        }
+
+        let player;
+        function createPlayer() {
+            const preset = PLAYER_OUTFITS[playerConfig.outfitIndex];
+            const model = createRealisticHuman({
+                shirtColor: preset.shirt,
+                jacketColor: preset.jacket,
+                pantsColor: preset.pants,
+                shoeColor: preset.shoes,
+                skinColor: playerConfig.skinColor,
+                hairColor: HAIR_COLORS[playerConfig.hairStyle % HAIR_COLORS.length],
+                hairStyle: playerConfig.hairStyle,
+                glasses: playerConfig.glasses,
+                hasJacket: preset.hasJacket,
+                shortSleeves: preset.shortSleeves
+            });
+
+            if (player && player.mesh) {
+                const currentVeh = player.inVehicle;
+                if (currentVeh && currentVeh.seatAnchor) {
+                    currentVeh.seatAnchor.remove(player.mesh);
+                    currentVeh.seatAnchor.add(model.group);
+                    model.group.position.set(0, 0, 0);
+                    model.group.rotation.set(0, 0, 0);
+                    player.mesh = model.group;
+                    player.limbs = model;
+                    applyDrivingCharacterPose(currentVeh, 0, 0);
+                } else {
+                    model.group.position.copy(player.mesh.position);
+                    model.group.rotation.copy(player.mesh.rotation);
+                    model.group.visible = true;
+                    scene.remove(player.mesh);
+                    player.mesh = model.group;
+                    player.limbs = model;
+                    scene.add(model.group);
+                }
+            } else {
+                model.group.position.copy(outsideWorldPos);
+                scene.add(model.group);
+                player = {
+                    mesh: model.group,
+                    limbs: model,
+                    velY: 0,
+                    isGrounded: true,
+                    inVehicle: null,
+                    animTime: 0
+                };
+            }
+        }
+
+        // Wardrobe UI Listeners
+        function setupWardrobeUI() {
+            document.getElementById('open-wardrobe-btn')?.addEventListener('click', toggleWardrobeMenu);
+            document.getElementById('close-wardrobe-btn')?.addEventListener('click', toggleWardrobeMenu);
+            document.getElementById('done-wardrobe-btn')?.addEventListener('click', () => {
+                const wardrobeModal = document.getElementById('wardrobe-modal');
+                wardrobeModal.classList.add('hidden');
+                document.getElementById('game-canvas').requestPointerLock?.();
+            });
+
+            document.querySelectorAll('#outfit-buttons button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    playerConfig.outfitIndex = parseInt(btn.dataset.outfit, 10);
+                    createPlayer();
+                    showToast(`Equipped ${PLAYER_OUTFITS[playerConfig.outfitIndex].name}`);
+                });
+            });
+
+            document.querySelectorAll('#hair-buttons button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    playerConfig.hairStyle = parseInt(btn.dataset.hair, 10);
+                    createPlayer();
+                    showToast(`Updated Hairstyle`);
+                });
+            });
+
+            document.querySelectorAll('#skin-buttons button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    playerConfig.skinColor = btn.dataset.skin;
+                    createPlayer();
+                });
+            });
+
+            document.querySelectorAll('#glasses-buttons button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    playerConfig.glasses = btn.dataset.glasses;
+                    createPlayer();
+                });
+            });
+
+            // NPC Dialogue Choice Listeners
+            document.querySelectorAll('#dialogue-choices button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const choiceIdx = parseInt(btn.dataset.choice, 10);
+                    handleDialogueChoice(choiceIdx);
+                });
+            });
+
+            document.getElementById('close-dialogue-btn')?.addEventListener('click', closeDialogueModal);
+
+            // Mobile Helper Buttons
+            document.getElementById('btn-mobile-enter')?.addEventListener('click', handleEnterExitVehicle);
+            document.getElementById('btn-mobile-horn')?.addEventListener('click', triggerVehicleHorn);
+            document.getElementById('btn-mobile-time')?.addEventListener('click', toggleWardrobeMenu);
+        }
+
+        function toggleWardrobeMenu() {
+            const wardrobeModal = document.getElementById('wardrobe-modal');
+            const isHidden = wardrobeModal.classList.contains('hidden');
+            if (isHidden) {
+                wardrobeModal.classList.remove('hidden');
+                document.exitPointerLock?.();
+            } else {
+                wardrobeModal.classList.add('hidden');
+            }
+        }
+
+        function openDialogueModal(npc) {
+            activeDialogueNpc = npc;
+            const modal = document.getElementById('dialogue-modal');
+            modal.classList.remove('hidden');
+            document.exitPointerLock?.();
+
+            const names = ['Mateo', 'Valentina', 'Carlos', 'Sofia', 'Alejandro', 'Camila'];
+            const nName = names[Math.floor(Math.abs(npc.mesh.position.x) + Math.abs(npc.mesh.position.z)) % names.length];
+            document.getElementById('npc-name-tag').textContent = `${nName} (Miami Resident)`;
+
+            const greetings = [
+                `"Que tal! Love this sunny weather today. Are you heading down to Ocean Drive or Star Island?"`,
+                `"Hey friend! Watch out for reckless drivers on these avenues. Everyone's in a rush today!"`,
+                `"Welcome to Vice Beach! Have you checked out Club Pink Flamingo in the entertainment district yet?"`
+            ];
+            const greet = greetings[Math.floor(Math.abs(npc.mesh.position.x)) % greetings.length];
+            document.getElementById('npc-dialogue-text').textContent = greet;
+        }
+
+        function handleDialogueChoice(choiceIdx) {
+            const textEl = document.getElementById('npc-dialogue-text');
+            if (choiceIdx === 0) {
+                textEl.textContent = `"The best spot is definitely the tropical park fountain and the rooftop lounge at Havana Rhythm! Enjoy your stay."`;
+            } else {
+                textEl.textContent = `"Supercars? Oh yeah, Infernus Vice GTs are parked all over Ocean Drive and Star Island. Just walk up and press E to take one for a spin!"`;
+            }
+            setTimeout(closeDialogueModal, 3500);
+        }
+
+        function closeDialogueModal() {
+            document.getElementById('dialogue-modal').classList.add('hidden');
+            activeDialogueNpc = null;
+            document.getElementById('game-canvas').requestPointerLock?.();
+        }
+
+        function showToast(msg) {
+            const banner = document.getElementById('toast-banner');
+            banner.textContent = msg;
+            banner.classList.remove('hidden');
+            clearTimeout(banner._timer);
+            banner._timer = setTimeout(() => banner.classList.add('hidden'), 2800);
+        }
+<!-- ... upward diff context ... -->
+        function handleEnterExitVehicle() {
+            audio.init();
+            if (player.inVehicle) {
+                const v = player.inVehicle;
+                v.isPlayerControlled = false;
+                if (v.seatAnchor) {
+                    v.seatAnchor.remove(player.mesh);
+                }
+                scene.add(player.mesh);
+                player.mesh.scale.setScalar(1.0);
+                const exitOffset = new THREE.Vector3(-2.3, 0.28, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), v.mesh.rotation.y);
+                player.mesh.position.copy(v.mesh.position).add(exitOffset);
+                player.mesh.rotation.set(0, v.mesh.rotation.y, 0);
+                player.mesh.visible = true;
+                player.inVehicle = null;
+                animateCharacterLimbs(player.limbs, 0, 0, false);
+
+                document.getElementById('speedometer-panel').classList.add('hidden');
+                document.getElementById('status-mode').textContent = isInsideClub ? 'Inside Club Pink Flamingo' : 'On Foot • Exploring';
+                audio.updateEngine(false, 0);
+                return;
+            }
+
+            // Check if near enterable nightclub door
+            let nearDoor = null;
+            buildingDoors.forEach(door => {
+                const pPos = player.mesh.position;
+                if (Math.hypot(pPos.x - door.x, pPos.z - door.z) < 2.8) {
+                    nearDoor = door;
+                }
+            });
+
+            if (nearDoor) {
+                if (nearDoor.isNightclub) {
+                    isInsideClub = true;
+                    outsideWorldPos.copy(player.mesh.position);
+                    player.mesh.position.copy(CLUB_INTERIOR_POS);
+                    document.getElementById('status-mode').textContent = 'Inside Club Pink Flamingo';
+                    showToast('Entered Club Pink Flamingo • Enjoy the Music');
+                    return;
+                } else if (nearDoor.isNightclubExit) {
+                    isInsideClub = false;
+                    player.mesh.position.copy(outsideWorldPos);
+                    document.getElementById('status-mode').textContent = 'On Foot • Exploring';
+                    showToast('Exited to Ocean Drive');
+                    return;
+                }
+            }
+
+            // Find closest vehicle within 6.5 units
+            let closest = null;
+            let minDist = 6.5;
+            vehicles.forEach(v => {
+                if (isInsideClub) return;
+                const d = v.mesh.position.distanceTo(player.mesh.position);
+                if (d < minDist) {
+                    minDist = d;
+                    closest = v;
+                }
+            });
+
+            if (closest) {
+                if (closest.isAI) {
+                    closest.isAI = false;
+                    addWantedStar(1);
+                    playerCash += 150;
+                    document.getElementById('cash-display').textContent = `$${playerCash.toLocaleString()}`;
+                    showToast(`Hijacked ${closest.spec.name}! +$150 Street Bonus`);
+                } else {
+                    showToast(`Driving ${closest.spec.name}`);
+                }
+
+                player.inVehicle = closest;
+                closest.isPlayerControlled = true;
+
+                scene.remove(player.mesh);
+                closest.seatAnchor.add(player.mesh);
+                player.mesh.position.set(0, 0, 0);
+                player.mesh.rotation.set(0, 0, 0);
+                player.mesh.visible = true;
+                applyDrivingCharacterPose(closest, 0, 0);
+
+                camYaw = closest.mesh.rotation.y + Math.PI;
+                lastMouseMoveTime = performance.now();
+
+                document.getElementById('speedometer-panel').classList.remove('hidden');
+                document.getElementById('veh-title').textContent = closest.spec.name;
+                document.getElementById('veh-class-badge').textContent = closest.spec.badge;
+                document.getElementById('status-mode').textContent = `Driving • ${closest.spec.badge}`;
+                document.getElementById('interact-prompt').classList.add('hidden');
+            }
+        }
+<!-- ... upward diff context ... -->
+        function updatePlayerOnFoot(dt) {
+            let moveX = 0, moveZ = 0;
+            if (keys.w) moveZ -= 1;
+            if (keys.s) moveZ += 1;
+            if (keys.a) moveX -= 1;
+            if (keys.d) moveX += 1;
+
+            const isMoving = moveX !== 0 || moveZ !== 0;
+            const speed = keys.shift ? 12.5 : 6.8;
+
+            if (isMoving) {
+                const moveAngle = Math.atan2(moveX, moveZ) + camYaw;
+                const dx = Math.sin(moveAngle) * speed * dt;
+                const dz = Math.cos(moveAngle) * speed * dt;
+
+                let angleDiff = moveAngle - player.mesh.rotation.y;
+                while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+                player.mesh.rotation.y += angleDiff * Math.min(1, dt * 16);
+
+                const nextX = player.mesh.position.x + dx;
+                const nextZ = player.mesh.position.z + dz;
+
+                if (isInsideClub) {
+                    // Club interior bounds check (45x45 room at X=550, Z=550)
+                    const ix = CLUB_INTERIOR_POS.x;
+                    const iz = CLUB_INTERIOR_POS.z;
+                    if (nextX > ix - 21 && nextX < ix + 21) player.mesh.position.x = nextX;
+                    if (nextZ > iz - 21 && nextZ < iz + 21) player.mesh.position.z = nextZ;
+                } else {
+                    if (!checkSolidCollision(nextX, player.mesh.position.z, 0.55)) {
+                        player.mesh.position.x = nextX;
+                    }
+                    if (!checkSolidCollision(player.mesh.position.x, nextZ, 0.55)) {
+                        player.mesh.position.z = nextZ;
+                    }
+
+                    // NPC Collision & Reaction System
+                    npcs.forEach(npc => {
+                        const dist = player.mesh.position.distanceTo(npc.mesh.position);
+                        if (dist < 1.1) {
+                            npc.state = 'surprised';
+                            npc.timer = 3.5;
+                            npc.mesh.lookAt(player.mesh.position.x, npc.mesh.position.y, player.mesh.position.z);
+                            showToast('Press E to Talk to Resident');
+                        }
+                    });
+                }
+
+                player.animTime += dt * (keys.shift ? 14 : 9);
+                animateCharacterLimbs(player.limbs, player.animTime, keys.shift ? 0.92 : 0.62, keys.shift);
+            } else {
+                animateCharacterLimbs(player.limbs, 0, 0, false);
+            }
+
+            if (keys.space && player.isGrounded) {
+                player.velY = 9.5;
+                player.isGrounded = false;
+            }
+            player.velY -= 24 * dt;
+            player.mesh.position.y += player.velY * dt;
+            if (player.mesh.position.y <= 0.28) {
+                player.mesh.position.y = 0.28;
+                player.velY = 0;
+                player.isGrounded = true;
+            }
+
+            // Check door interaction prompts
+            let nearDoor = null;
+            buildingDoors.forEach(door => {
+                if (Math.hypot(player.mesh.position.x - door.x, player.mesh.position.z - door.z) < 2.8) {
+                    nearDoor = door;
+                }
+            });
+
+            // Check NPC conversation proximity
+            let nearNpc = null;
+            if (!isInsideClub) {
+                npcs.forEach(npc => {
+                    if (player.mesh.position.distanceTo(npc.mesh.position) < 3.2) {
+                        nearNpc = npc;
+                    }
+                });
+            }
+
+            const promptEl = document.getElementById('interact-prompt');
+            if (nearDoor) {
+                promptEl.classList.remove('hidden');
+                document.getElementById('prompt-veh-name').textContent = nearDoor.name;
+            } else if (nearNpc) {
+                promptEl.classList.remove('hidden');
+                document.getElementById('prompt-veh-name').textContent = 'Miami Resident (Press E to Talk)';
+                if (keys.space || keys.w) { // or E key handled in keydown
+                }
+            } else {
+                let nearVeh = null;
+                if (!isInsideClub) {
+                    vehicles.forEach(v => {
+                        if (v.mesh.position.distanceTo(player.mesh.position) < 6.2) nearVeh = v;
+                    });
+                }
+                if (nearVeh) {
+                    promptEl.classList.remove('hidden');
+                    document.getElementById('prompt-veh-name').textContent = nearVeh.spec.name;
+                } else {
+                    promptEl.classList.add('hidden');
+                }
+            }
+        }
+<!-- ... upward diff context ... -->
+        function updateNPCs(dt) {
+            const activePos = player.inVehicle ? player.inVehicle.mesh.position : player.mesh.position;
+            const playerFast = player.inVehicle && Math.abs(player.inVehicle.speed) > 18;
+
+            npcs.forEach((npc, idx) => {
+                const distToPlayer = npc.mesh.position.distanceTo(activePos);
+                if (distToPlayer > 175) return;
+
+                npc.timer -= dt;
+
+                if (playerFast && distToPlayer < 11) {
+                    npc.state = 'flee';
+                    npc.timer = 4;
+                    if (distToPlayer < 2.2) addWantedStar(1);
+                }
+
+                // Vehicle-to-Pedestrian Collision Interaction
+                vehicles.forEach(v => {
+                    if (v.mesh.position.distanceTo(npc.mesh.position) < 2.8 && Math.abs(v.speed) > 5) {
+                        npc.state = 'flee';
+                        npc.timer = 5;
+                        audio.playTireScreech();
+                    }
+                });
+
+                if (npc.timer <= 0 && npc.state !== 'surprised') {
+                    npc.state = Math.random() < 0.22 ? 'chat' : 'walk';
+                    npc.timer = 4 + Math.random() * 7;
+                }
+
+                if (npc.state === 'surprised') {
+                    // Surprised / annoyed reaction pose
+                    animateCharacterLimbs(npc.limbs, 0, 0, false);
+                    npc.limbs.leftArm.rotation.x = -1.2;
+                    npc.limbs.rightArm.rotation.x = -1.2;
+                    npc.limbs.headGroup.rotation.y = Math.sin(clock.elapsedTime * 8) * 0.4;
+                } else if (npc.state === 'chat') {
+                    animateCharacterLimbs(npc.limbs, 0, 0, false);
+                    npc.limbs.rightArm.rotation.x = Math.sin(clock.elapsedTime * 5 + idx) * 0.35;
+                } else {
+                    const spd = npc.state === 'flee' ? 6.5 : npc.speed;
+                    const dz = Math.cos(npc.mesh.rotation.y) * spd * dt;
+                    const dx = Math.sin(npc.mesh.rotation.y) * spd * dt;
+
+                    const nextX = npc.mesh.position.x + dx;
+                    const nextZ = npc.mesh.position.z + dz;
+
+                    if (!checkSolidCollision(nextX, nextZ, 0.45)) {
+                        npc.mesh.position.x = nextX;
+                        npc.mesh.position.z = nextZ;
+                    } else {
+                        npc.mesh.rotation.y += Math.PI * 0.5;
+                    }
+
+                    npc.animPhase += dt * (npc.state === 'flee' ? 14 : 7);
+                    animateCharacterLimbs(npc.limbs, npc.animPhase, npc.state === 'flee' ? 0.9 : 0.55, npc.state === 'flee');
+
+                    if (npc.dog) {
+                        npc.dog.legs.forEach((leg, lIdx) => {
+                            leg.rotation.x = Math.sin(npc.animPhase * 1.6 + lIdx) * 0.5;
+                        });
+                        npc.dog.tail.rotation.z = Math.sin(clock.elapsedTime * 10) * 0.35;
+                    }
+                }
+            });
+
+            // Update Beach Boardwalk Cyclists
+            cyclists.forEach(c => {
+                c.group.position.z += c.dirSign * c.speed * dt;
+                if (c.group.position.z > 190) c.group.position.z = -190;
+                if (c.group.position.z < -190) c.group.position.z = 190;
+                c.phase += dt * 12;
+                c.rider.leftLeg.rotation.x = -0.5 + Math.sin(c.phase) * 0.45;
+                c.rider.rightLeg.rotation.x = -0.5 - Math.sin(c.phase) * 0.45;
+                c.rider.leftCalf.rotation.x = 0.65;
+                c.rider.rightCalf.rotation.x = 0.65;
+            });
+        }
+
+        function updateCameraAndHUD(dt) {
+            const targetObj = player.inVehicle ? player.inVehicle.mesh : player.mesh;
+            const followDist = player.inVehicle ? 10.5 : 5.5;
+            const followHeight = player.inVehicle ? 3.2 : 2.2;
+
+            // Full 360-degree camera freedom: never snap back while moving mouse or on foot;
+            // only gently align behind moving vehicle if mouse hasn't been touched for > 3.5 seconds
+            const timeSinceMouse = performance.now() - lastMouseMoveTime;
+            if (player.inVehicle && Math.abs(player.inVehicle.speed) > 4 && timeSinceMouse > 3500) {
+                const desiredYaw = player.inVehicle.mesh.rotation.y + Math.PI;
+                let diff = desiredYaw - camYaw;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                camYaw += diff * dt * 1.8;
+            }
+
+            const offsetX = Math.sin(camYaw) * Math.cos(camPitch) * followDist;
+            const offsetZ = Math.cos(camYaw) * Math.cos(camPitch) * followDist;
+            const offsetY = Math.sin(camPitch) * followDist + followHeight * 0.5;
+
+            const desiredCamPos = new THREE.Vector3(
+                targetObj.position.x + offsetX,
+                Math.max(0.85, targetObj.position.y + offsetY),
+                targetObj.position.z + offsetZ
+            );
+
+            camera.position.lerp(desiredCamPos, Math.min(1, dt * 16));
+            camera.lookAt(targetObj.position.x, targetObj.position.y + 1.45, targetObj.position.z);
+
+            // District Name Detection including Entertainment District
+            const px = targetObj.position.x;
+            const pz = targetObj.position.z;
+            let district = 'Downtown Brickell';
+            if (px > 125) district = 'Star Island & Venetian Causeway';
+            else if (px > 65) district = 'South Beach Sand & Boardwalk';
+            else if (px > -15 && pz < -85) district = 'Miami Entertainment & Nightlife Strip';
+            else if (px > -15) district = 'Ocean Drive Art Deco District';
+            else if (px < -105) district = 'Little Havana & Coral Gables';
+            document.getElementById('district-name').textContent = district;
+
+            if (wantedStars > 0) {
+                wantedDecayTimer -= dt;
+                if (wantedDecayTimer <= 0) {
+                    wantedStars = Math.max(0, wantedStars - 1);
+                    wantedDecayTimer = 15;
+                    updateStarsUI();
+                }
+            }
+
+            // FPS Counter
+            fpsFrames++;
+            const now = performance.now();
+            if (now - fpsLastTime >= 500) {
+                const fps = Math.min(60, Math.round((fpsFrames * 1000) / (now - fpsLastTime)));
+                document.getElementById('fps-counter').textContent = `${fps} FPS`;
+                fpsFrames = 0;
+                fpsLastTime = now;
+            }
+        }
+
+        function drawMinimap() {
+            const canvas = document.getElementById('minimap-canvas');
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+            const scale = 0.38;
+
+            const focus = player.inVehicle ? player.inVehicle.mesh.position : player.mesh.position;
+
+            ctx.clearRect(0, 0, w, h);
+            ctx.fillStyle = '#091526';
+            ctx.fillRect(0, 0, w, h);
+
+            ctx.save();
+            ctx.translate(w / 2, h / 2);
+            ctx.rotate(camYaw);
+
+            // Draw Landmasses
+            ctx.fillStyle = '#1e3a2f';
+            ctx.fillRect((-265 - focus.x) * scale, (-240 - focus.z) * scale, 230 * scale, 480 * scale);
+            ctx.fillRect((-30 - focus.x) * scale, (-240 - focus.z) * scale, 112 * scale, 480 * scale);
+
+            // Draw Beach
+            ctx.fillStyle = '#e9c46a';
+            ctx.fillRect((82 - focus.x) * scale, (-240 - focus.z) * scale, 58 * scale, 480 * scale);
+
+            // Draw Roads
+            ctx.fillStyle = '#495057';
+            ROAD_X.forEach(rx => {
+                ctx.fillRect((rx - 8 - focus.x) * scale, (-220 - focus.z) * scale, 16 * scale, 440 * scale);
+            });
+            ROAD_Z.forEach(rz => {
+                ctx.fillRect((-195 - focus.x) * scale, (rz - 8 - focus.z) * scale, 275 * scale, 16 * scale);
+            });
+
+            // Draw Railway Line on Minimap
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.moveTo((RAILWAY_X - focus.x) * scale, (-220 - focus.z) * scale);
+            ctx.lineTo((RAILWAY_X - focus.x) * scale, (220 - focus.z) * scale);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Draw Vehicles on Radar
+            vehicles.forEach(v => {
+                if (v === player.inVehicle) return;
+                ctx.fillStyle = v.isAI ? '#00f0ff' : '#ff2a85';
+                ctx.fillRect((v.mesh.position.x - focus.x) * scale - 2, (v.mesh.position.z - focus.z) * scale - 2, 4, 4);
+            });
+
+            ctx.restore();
+
+            // BIG BRIGHT BLUE DOT & "CLUB" LABEL FOR NIGHTCLUB (Clamped to radar edge if far away so ALWAYS visible)
+            const dxClub = (CLUB_LOCATION.x - focus.x) * scale;
+            const dzClub = (CLUB_LOCATION.z - focus.z) * scale;
+            const cosYaw = Math.cos(camYaw);
+            const sinYaw = Math.sin(camYaw);
+            let rxClub = dxClub * cosYaw - dzClub * sinYaw;
+            let ryClub = dxClub * sinYaw + dzClub * cosYaw;
+
+            const maxRadarRadius = (w / 2) - 14;
+            const distClub = Math.hypot(rxClub, ryClub);
+            if (distClub > maxRadarRadius) {
+                rxClub = (rxClub / distClub) * maxRadarRadius;
+                ryClub = (ryClub / distClub) * maxRadarRadius;
+            }
+
+            const clubScreenX = (w / 2) + rxClub;
+            const clubScreenY = (h / 2) + ryClub;
+
+            ctx.save();
+            // Outer pulsing neon blue halo
+            ctx.shadowColor = '#00f0ff';
+            ctx.shadowBlur = 12;
+            ctx.fillStyle = '#00d8ff';
+            ctx.beginPath();
+            ctx.arc(clubScreenX, clubScreenY, 6.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#ffffff';
+            ctx.stroke();
+
+            // Bold "CLUB" label next to the bright blue dot
+            ctx.font = '800 10px Inter, sans-serif';
+            ctx.textAlign = rxClub > 25 ? 'right' : 'left';
+            ctx.textBaseline = 'middle';
+            const labelOffsetX = rxClub > 25 ? -10 : 10;
+            ctx.strokeStyle = '#091526';
+            ctx.lineWidth = 3.5;
+            ctx.strokeText('CLUB', clubScreenX + labelOffsetX, clubScreenY);
+            ctx.fillStyle = '#38bdf8';
+            ctx.fillText('CLUB', clubScreenX + labelOffsetX, clubScreenY);
+            ctx.restore();
+
+            // Center Player Arrow
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(w / 2, h / 2, 4.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#ff2a85';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        function animateWater(elapsed) {
+            if (!waterMesh) return;
+            const pos = waterMesh.geometry.attributes.position;
+            for (let i = 0; i < pos.count; i++) {
+                const vx = pos.getX(i);
+                const vz = pos.getZ(i);
+                const wave = Math.sin(vx * 0.04 + elapsed * 1.8) * 0.22 + Math.cos(vz * 0.05 + elapsed * 1.4) * 0.18;
+                pos.setY(i, wave);
+            }
+            pos.needsUpdate = true;
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.05);
+            const elapsed = clock.getElapsedTime();
+
+            if (player.inVehicle) {
+                updateDrivingVehicle(player.inVehicle, dt);
+            } else {
+                updatePlayerOnFoot(dt);
+            }
+
+            updateTrafficAndLights(dt, elapsed);
+            updateNPCs(dt);
+            updateCameraAndHUD(dt);
+            animateWater(elapsed);
+            drawMinimap();
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = initGame;
+    </script>
+</body>
+</html>
