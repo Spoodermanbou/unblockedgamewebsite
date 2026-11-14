@@ -107,6 +107,11 @@
             box-shadow: 0 8px 20px rgba(0, 255, 136, 0.15);
         }
 
+        .tiktok-card:hover {
+            border-color: #ff0050;
+            box-shadow: -5px 5px 15px rgba(0, 242, 254, 0.2), 5px -5px 15px rgba(255, 0, 80, 0.2);
+        }
+
         .glass-card img {
             width: 64px;
             height: 64px;
@@ -139,20 +144,20 @@
         }
 
         .viewer-header {
-            height: 50px;
-            background: rgba(10, 10, 15, 0.95);
-            border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+            height: 55px;
+            background: rgba(10, 10, 15, 0.98);
+            border-bottom: 1px solid rgba(0, 255, 136, 0.3);
             display: flex;
             align-items: center;
-            justify-content: space-between; 
+            gap: 15px; /* Keeps buttons side-by-side on the left */
             padding: 0 20px;
         }
 
         .action-btn {
-            background: rgba(0, 255, 136, 0.1);
+            background: rgba(0, 255, 136, 0.12);
             color: #00ff88;
-            border: 1px solid rgba(0, 255, 136, 0.3);
-            padding: 6px 15px;
+            border: 1px solid #00ff88;
+            padding: 7px 16px;
             border-radius: 6px;
             cursor: pointer;
             font-family: 'Rajdhani', sans-serif;
@@ -167,13 +172,16 @@
         .action-btn:hover {
             background: #00ff88;
             color: #000;
+            box-shadow: 0 0 12px rgba(0, 255, 136, 0.5);
         }
 
         iframe {
             flex: 1;
             border: none;
             width: 100%;
-            background: #fff; 
+            height: 100%;
+            background: #000;
+            outline: none;
         }
     </style>
 </head>
@@ -201,6 +209,11 @@
                 <span>BUILDNOW</span>
             </div>
 
+            <div class="glass-card tiktok-card" onclick="openApp('https://YOUR_PROXY_LINK_HERE.com/tiktok')">
+                <img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" style="filter: invert(1);" alt="TikTok">
+                <span>TIKTOK</span>
+            </div>
+
             <div class="glass-card" onclick="openApp('https://now.gg/play/roblox-corporation/5349/roblox')">
                 <img src="https://upload.wikimedia.org/wikipedia/commons/3/3a/Roblox_player_icon_black.svg" style="filter: invert(1);" alt="Roblox">
                 <span>ROBLOX</span>
@@ -215,46 +228,62 @@
                     <span>←</span> SYSTEM RETURN
                 </button>
                 
-                <!-- FULLSCREEN BUTTON -->
+                <!-- FULLSCREEN BUTTON RIGHT NEXT TO RETURN BUTTON -->
                 <button class="action-btn" onclick="goFullscreen()">
-                    [ ] FULLSCREEN
+                    <span>⛶</span> FULLSCREEN
                 </button>
             </div>
             
-            <!-- IFRAME PERMISSIONS FOR KEYS AND MOUSE LOCK -->
-            <iframe id="main-frame" src="" allowfullscreen="true" allow="autoplay; fullscreen; pointer-lock; keyboard-map; microphone; camera" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+            <!-- Clean iframe permissions so keys, typing, and mouse lock work without glitching -->
+            <iframe id="main-frame" src="" tabindex="0" allowfullscreen="true" allow="autoplay; fullscreen; pointer-lock"></iframe>
         </div>
 
     </div>
 
     <script>
+        const iframe = document.getElementById('main-frame');
+
         function openApp(url) {
+            // Unfocus any buttons on the main page so they don't steal keyboard input
+            if (document.activeElement) {
+                document.activeElement.blur();
+            }
+
             document.getElementById('dashboard').style.display = 'none';
             document.getElementById('app-viewer').style.display = 'flex';
-            
-            let iframe = document.getElementById('main-frame');
             iframe.src = url;
-            
-            setTimeout(() => {
-                iframe.focus();
-            }, 500);
         }
+
+        // Automatically gives keyboard control to the game the exact moment it finishes loading
+        iframe.addEventListener('load', () => {
+            if (iframe.src && iframe.src !== window.location.href) {
+                iframe.focus();
+                if (iframe.contentWindow) {
+                    iframe.contentWindow.focus();
+                }
+            }
+        });
 
         function closeApp() {
             document.getElementById('dashboard').style.display = 'grid';
             document.getElementById('app-viewer').style.display = 'none';
-            document.getElementById('main-frame').src = ""; 
+            iframe.src = ""; 
         }
 
-        // Fullscreen Logic
+        // Fullscreen Logic + Instant Keyboard Focus
         function goFullscreen() {
-            let iframe = document.getElementById('main-frame');
             if (iframe.requestFullscreen) {
                 iframe.requestFullscreen();
             } else if (iframe.webkitRequestFullscreen) { 
                 iframe.webkitRequestFullscreen();
             }
-            iframe.focus();
+            
+            setTimeout(() => {
+                iframe.focus();
+                if (iframe.contentWindow) {
+                    iframe.contentWindow.focus();
+                }
+            }, 100);
         }
 
         // Tab Cloaking
