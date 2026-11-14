@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>i-Ready</title>
+    <link id="favicon" rel="icon" type="image/x-icon" href="https://login.i-ready.com/favicon.ico">
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap');
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: radial-gradient(circle at top left, #1a1a24, #0d0d12);
+            color: #fff;
+            font-family: 'Rajdhani', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+        }
+
+        /* --- Sidebar Navigation --- */
+        .sidebar {
+            width: 250px;
+            background: rgba(255, 255, 255, 0.02);
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        .logo {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 28px;
+            font-weight: 700;
+            color: #00ff88;
+            text-align: center;
+            margin-top: 10px;
+            margin-bottom: 40px;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+            letter-spacing: 2px;
+        }
+
+        .search-box {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 16px;
+            margin-bottom: 30px;
+            outline: none;
+            transition: border 0.3s;
+        }
+
+        .search-box:focus {
+            border-color: #00ff88;
+        }
+
+        /* --- Main Content Area --- */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        /* --- Dashboard Grid --- */
+        .dashboard {
+            padding: 50px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 25px;
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            align-content: flex-start;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 30px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .glass-card:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: #00ff88;
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 255, 136, 0.15);
+        }
+        
+        /* Special Hover for TikTok */
+        .tiktok-card:hover {
+            border-color: #ff0050;
+            box-shadow: -5px 5px 15px rgba(0, 242, 254, 0.2), 5px -5px 15px rgba(255, 0, 80, 0.2);
+        }
+
+        .glass-card img {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 15px;
+            object-fit: contain;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));
+            transition: transform 0.3s ease;
+            z-index: 2;
+        }
+
+        .glass-card:hover img {
+            transform: scale(1.1);
+        }
+
+        .glass-card span {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: #eee;
+            z-index: 2;
+        }
+
+        /* --- App Viewer Frame --- */
+        #app-viewer {
+            display: none;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            background: #000;
+        }
+
+        .viewer-header {
+            height: 50px;
+            background: rgba(10, 10, 15, 0.95);
+            border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+        }
+
+        .back-btn {
+            background: rgba(0, 255, 136, 0.1);
+            color: #00ff88;
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            padding: 6px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 700;
+            font-size: 16px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .back-btn:hover {
+            background: #00ff88;
+            color: #000;
+        }
+
+        iframe {
+            flex: 1;
+            border: none;
+            width: 100%;
+            background: #fff; 
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar / OS Menu -->
+    <div class="sidebar">
+        <div class="logo">VERTEX<br>OS</div>
+        <input type="text" class="search-box" placeholder="Search systems...">
+    </div>
+
+    <!-- Main OS Workspace -->
+    <div class="main-content">
+        
+        <!-- Dashboard App Grid -->
+        <div class="dashboard" id="dashboard">
+            
+            <div class="glass-card" onclick="openApp('https://your-github-name.github.io')">
+                <img src="https://minecraft.wiki/images/Grass_Block_JE4.png" alt="Eagler">
+                <span>EAGLER</span>
+            </div>
+            
+            <div class="glass-card" onclick="openApp('https://w8.snokido.com/games/unity-webgl/buildnow-gg/index.html')">
+                <img src="https://cdn-icons-png.flaticon.com/512/3133/3133370.png" style="filter: invert(1);" alt="BuildNow">
+                <span>BUILDNOW</span>
+            </div>
+
+            <!-- TIKTOK APP (Requires a Proxy Link to bypass filter) -->
+            <div class="glass-card tiktok-card" onclick="openApp('https://YOUR_PROXY_LINK_HERE.com/tiktok')">
+                <img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" style="filter: invert(1);" alt="TikTok">
+                <span>TIKTOK</span>
+            </div>
+
+            <div class="glass-card" onclick="openApp('https://now.gg/play/roblox-corporation/5349/roblox')">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/3/3a/Roblox_player_icon_black.svg" style="filter: invert(1);" alt="Roblox">
+                <span>ROBLOX</span>
+            </div>
+            
+        </div>
+
+        <!-- Hidden Iframe Viewer -->
+        <div id="app-viewer">
+            <div class="viewer-header">
+                <button class="back-btn" onclick="closeApp()">
+                    <span>←</span> SYSTEM RETURN
+                </button>
+            </div>
+            <iframe id="main-frame" src="" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; fullscreen; microphone; camera"></iframe>
+        </div>
+
+    </div>
+
+    <script>
+        function openApp(url) {
+            document.getElementById('dashboard').style.display = 'none';
+            document.getElementById('app-viewer').style.display = 'flex';
+            document.getElementById('main-frame').src = url;
+        }
+
+        function closeApp() {
+            document.getElementById('dashboard').style.display = 'grid';
+            document.getElementById('app-viewer').style.display = 'none';
+            document.getElementById('main-frame').src = ""; 
+        }
+
+        // Tab Cloaking
+        const favicon = document.getElementById("favicon");
+        const googleIcon = "https://www.google.com/favicon.ico";
+
+        function disguise() { 
+            document.title = "New Tab"; 
+            favicon.href = googleIcon; 
+        }
+        
+        function restore() { 
+            document.title = "i-Ready"; 
+            favicon.href = "https://login.i-ready.com/favicon.ico"; 
+        }
+
+        document.addEventListener("visibilitychange", () => { document.hidden ? disguise() : restore(); });
+        window.addEventListener("blur", disguise);
+        window.addEventListener("focus", restore);
+    </script>
+</body>
+</html>
