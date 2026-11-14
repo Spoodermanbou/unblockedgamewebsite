@@ -2,6 +2,8 @@
 <html lang="en-us">
 <head>
     <meta charset="utf-8">
+    <!-- Tells Unity where to find StreamingAssets and config files -->
+    <base href="https://cdn.jsdelivr.net/gh/bubblfan/cg-rip@main/buildnow-gg/">
     <title>BuildNow GG</title>
     <style>
         html, body {
@@ -11,7 +13,7 @@
             height: 100%;
             overflow: hidden;
             background: #0d0d12;
-            font-family: 'Rajdhani', sans-serif;
+            font-family: sans-serif;
         }
         #unity-canvas {
             width: 100vw;
@@ -27,6 +29,7 @@
             text-align: center;
             z-index: 10;
             width: 320px;
+            pointer-events: none;
         }
         #status-text {
             color: #00ff88;
@@ -51,6 +54,60 @@
             transition: width 0.15s ease;
         }
     </style>
+
+    <!-- CRAZYGAMES SDK BYPASS: Tricks BuildNow into skipping the post-splash "Loading..." check -->
+    <script>
+        const dummyCallback = (cb) => { if (typeof cb === "function") cb(null, {}); };
+        window.CrazyGames = {
+            SDK: {
+                init: () => Promise.resolve(),
+                environment: "local",
+                ad: {
+                    requestAd: (type, callbacks) => {
+                        if (callbacks && callbacks.adFinished) callbacks.adFinished();
+                        return Promise.resolve();
+                    },
+                    hasAdblock: (cb) => {
+                        if (typeof cb === "function") cb(null, false);
+                        return Promise.resolve(false);
+                    }
+                },
+                game: {
+                    sdkGameLoadingStart: () => {},
+                    sdkGameLoadingStop: () => {},
+                    gameplayStart: () => {},
+                    gameplayStop: () => {},
+                    happytime: () => {},
+                    inviteLink: () => Promise.resolve("")
+                },
+                user: {
+                    isUserAccountAvailable: false,
+                    getUser: (cb) => {
+                        if (typeof cb === "function") cb(null, null);
+                        return Promise.resolve(null);
+                    },
+                    getUserToken: (cb) => {
+                        if (typeof cb === "function") cb(null, "");
+                        return Promise.resolve("");
+                    },
+                    addAuthListener: () => {}
+                },
+                data: {
+                    getItem: (k) => localStorage.getItem(k),
+                    setItem: (k, v) => localStorage.setItem(k, v),
+                    removeItem: (k) => localStorage.removeItem(k),
+                    clear: () => {}
+                },
+                banner: {
+                    requestBanner: () => Promise.resolve(),
+                    requestResponsiveBanner: () => Promise.resolve(),
+                    clearBanner: () => {},
+                    clearAllBanners: () => {}
+                }
+            }
+        };
+        window.CrazySDK = window.CrazyGames.SDK;
+    </script>
 </head>
 <body>
     <div id="loader-ui">
@@ -65,11 +122,9 @@
         const loaderUi = document.getElementById("loader-ui");
         const canvas = document.getElementById("unity-canvas");
 
-        // Whitelisted jsDelivr CDN folder containing the raw Unity files
         const cdnBase = "https://cdn.jsdelivr.net/gh/bubblfan/cg-rip@main/buildnow-gg/";
         const buildBase = cdnBase + "Build/";
 
-        // Downloads split parts from jsDelivr and stitches them into a local RAM Blob
         async function assembleBinary(fileName, label, startPct, endPct) {
             const chunks = [];
             let part = 1;
@@ -111,12 +166,11 @@
                 const wasmBlobUrl = URL.createObjectURL(wasmBlob);
                 const dataBlobUrl = URL.createObjectURL(dataBlob);
 
-                // Hooks both fetch and XMLHttpRequest so Unity 2021 reads the local RAM Blobs without hanging
                 const origFetch = window.fetch;
                 window.fetch = function(input, init) {
                     if (typeof input === "string") {
-                        if (input.includes(".wasm")) return origFetch(wasmBlobUrl, init);
-                        if (input.includes(".data")) return origFetch(dataBlobUrl, init);
+                        if (input.includes("7db022abd161455e3cc5f207e75d294b.wasm")) return origFetch(wasmBlobUrl, init);
+                        if (input.includes("ab8dd356a41a2943639294657a0990f8.data")) return origFetch(dataBlobUrl, init);
                     }
                     return origFetch(input, init);
                 };
@@ -124,8 +178,8 @@
                 const origOpen = XMLHttpRequest.prototype.open;
                 XMLHttpRequest.prototype.open = function(method, url, ...rest) {
                     if (typeof url === "string") {
-                        if (url.includes(".wasm")) url = wasmBlobUrl;
-                        if (url.includes(".data")) url = dataBlobUrl;
+                        if (url.includes("7db022abd161455e3cc5f207e75d294b.wasm")) url = wasmBlobUrl;
+                        if (url.includes("ab8dd356a41a2943639294657a0990f8.data")) url = dataBlobUrl;
                     }
                     return origOpen.call(this, method, url, ...rest);
                 };
@@ -147,11 +201,10 @@
                         const totalPct = 85 + Math.round(progress * 15);
                         statusText.innerText = "STARTING ENGINE... " + Math.round(progress * 100) + "%";
                         barFill.style.width = totalPct + "%";
-                    }).then(() => {
+                    }).then((instance) => {
+                        window.unityInstance = instance;
                         loaderUi.style.display = "none";
                         canvas.focus();
-                    }).catch((err) => {
-                        statusText.innerText = "UNITY ERROR: " + err;
                     });
                 };
                 document.body.appendChild(script);
