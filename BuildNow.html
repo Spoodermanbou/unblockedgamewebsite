@@ -1,36 +1,69 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-us">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <title>BuildNow GG</title>
     <style>
-        body, html {
+        html, body {
+            width: 100%;
+            height: 100%;
             margin: 0;
             padding: 0;
-            width: 100%;
-            height: 100%;
             overflow: hidden;
-            background-color: #000;
+            background-color: #111;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: sans-serif;
+            color: #00ff88;
         }
-        iframe {
+        #unity-canvas {
             width: 100%;
             height: 100%;
-            border: none;
+            background: #111;
+            display: block;
+        }
+        #loading-text {
+            position: absolute;
+            font-size: 20px;
+            font-weight: bold;
+            letter-spacing: 1px;
         }
     </style>
 </head>
 <body>
-    <!-- Loads BuildNow GG via Google OpenSocial + jsDelivr CDN to bypass school filters -->
-    <iframe 
-        id="game-frame"
-        src="https://images-opensocial.googleusercontent.com/gadgets/ifr?url=https://cdn.jsdelivr.net/gh/zhit73/mr1@main/bgg.xml" 
-        allow="autoplay; fullscreen; pointer-lock" 
-        allowfullscreen="true">
-    </iframe>
+    <div id="loading-text">LOADING BUILDNOW ENGINE... 0%</div>
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
+
     <script>
-        window.onload = () => {
-            document.getElementById('game-frame').focus();
+        const canvas = document.querySelector("#unity-canvas");
+        const loadingText = document.querySelector("#loading-text");
+
+        // Pulls raw Unity engine files directly from jsDelivr CDN (No Snokido!)
+        const buildUrl = "https://cdn.jsdelivr.net/gh/bubbls/UGS-Assets@main/buildnow-gg/Build";
+        const loaderUrl = buildUrl + "/BuildNowGG.loader.js";
+
+        const config = {
+            dataUrl: buildUrl + "/BuildNowGG.data.unityweb",
+            frameworkUrl: buildUrl + "/BuildNowGG.framework.js.unityweb",
+            codeUrl: buildUrl + "/BuildNowGG.wasm.unityweb",
+            streamingAssetsUrl: "StreamingAssets",
+            companyName: "BattleLab",
+            productName: "BuildNow GG",
+            productVersion: "1.0",
         };
-    </script>
-</body>
-</html>
+
+        const script = document.createElement("script");
+        script.src = loaderUrl;
+        script.onload = () => {
+            createUnityInstance(canvas, config, (progress) => {
+                loadingText.innerText = "LOADING BUILDNOW ENGINE... " + Math.round(progress * 100) + "%";
+            }).then((unityInstance) => {
+                loadingText.style.display = "none";
+                canvas.focus();
+            }).catch((message) => {
+                loadingText.innerText = "Engine Error: Trying Backup Mirror...";
+                // Automatic fallback to GitHub Pages mirror if CDN fails
+                window.location.href = "https://ubg77.github.io/edit/buildnow-gg/";
+            });
