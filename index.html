@@ -107,7 +107,6 @@
             box-shadow: 0 8px 20px rgba(0, 255, 136, 0.15);
         }
         
-        /* Special Hover for TikTok */
         .tiktok-card:hover {
             border-color: #ff0050;
             box-shadow: -5px 5px 15px rgba(0, 242, 254, 0.2), 5px -5px 15px rgba(255, 0, 80, 0.2);
@@ -150,10 +149,11 @@
             border-bottom: 1px solid rgba(0, 255, 136, 0.2);
             display: flex;
             align-items: center;
+            justify-content: space-between; /* Spaces the buttons out */
             padding: 0 20px;
         }
 
-        .back-btn {
+        .action-btn {
             background: rgba(0, 255, 136, 0.1);
             color: #00ff88;
             border: 1px solid rgba(0, 255, 136, 0.3);
@@ -169,7 +169,7 @@
             gap: 8px;
         }
 
-        .back-btn:hover {
+        .action-btn:hover {
             background: #00ff88;
             color: #000;
         }
@@ -196,7 +196,7 @@
         <!-- Dashboard App Grid -->
         <div class="dashboard" id="dashboard">
             
-           <div class="glass-card" onclick="openApp('./eaglercraft.html')">
+            <div class="glass-card" onclick="openApp('./eaglercraft.html')">
                 <img src="https://minecraft.wiki/images/Grass_Block_JE4.png" alt="Eagler">
                 <span>EAGLER</span>
             </div>
@@ -222,11 +222,18 @@
         <!-- Hidden Iframe Viewer -->
         <div id="app-viewer">
             <div class="viewer-header">
-                <button class="back-btn" onclick="closeApp()">
+                <button class="action-btn" onclick="closeApp()">
                     <span>←</span> SYSTEM RETURN
                 </button>
+                
+                <!-- New Fullscreen Button -->
+                <button class="action-btn" onclick="goFullscreen()">
+                    [ ] FULLSCREEN
+                </button>
             </div>
-            <iframe id="main-frame" src="" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; fullscreen; microphone; camera"></iframe>
+            
+            <!-- CRITICAL FIX: allowfullscreen and pointer-lock added so keys and mouse locking work -->
+            <iframe id="main-frame" src="" allowfullscreen="true" allow="autoplay; fullscreen; pointer-lock; keyboard-map; microphone; camera" referrerpolicy="strict-origin-when-cross-origin"></iframe>
         </div>
 
     </div>
@@ -235,13 +242,32 @@
         function openApp(url) {
             document.getElementById('dashboard').style.display = 'none';
             document.getElementById('app-viewer').style.display = 'flex';
-            document.getElementById('main-frame').src = url;
+            
+            let iframe = document.getElementById('main-frame');
+            iframe.src = url;
+            
+            // Forces the browser to hand keyboard focus to the iframe immediately
+            setTimeout(() => {
+                iframe.focus();
+            }, 500);
         }
 
         function closeApp() {
             document.getElementById('dashboard').style.display = 'grid';
             document.getElementById('app-viewer').style.display = 'none';
             document.getElementById('main-frame').src = ""; 
+        }
+
+        // Fullscreen Logic
+        function goFullscreen() {
+            let iframe = document.getElementById('main-frame');
+            if (iframe.requestFullscreen) {
+                iframe.requestFullscreen();
+            } else if (iframe.webkitRequestFullscreen) { // Safari
+                iframe.webkitRequestFullscreen();
+            }
+            // Re-focus the iframe after going fullscreen to ensure keys work
+            iframe.focus();
         }
 
         // Tab Cloaking
