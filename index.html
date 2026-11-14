@@ -307,19 +307,18 @@
                 <span>EAGLER</span>
             </div>
             
-            <!-- EXACT BUILDNOW LOGO FROM YOUR SCREENSHOT -->
             <div class="glass-card" data-category="games" onclick="launchBuildNow()">
                 <img src="https://play-lh.googleusercontent.com/Jkx-IPLeRDk4uKeDyIMWKQ6jv9RquAC0WErGzWIMZQK7Z8FKzsqbUtC0J7vTm24xIqnme3TZR-6a8WAj6EXP_DA=s256-rw" alt="BuildNow">
                 <span>BUILDNOW</span>
             </div>
 
             <!-- ================= APPS CATEGORY ================= -->
-            <div class="glass-card tiktok-card" data-category="apps" style="display: none;" onclick="openApp('https://YOUR_PROXY_LINK_HERE.com/tiktok')">
+            <div class="glass-card tiktok-card" data-category="apps" style="display: none;" onclick="launchTikTok()">
                 <img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" style="filter: invert(1); border-radius: 0; object-fit: contain;" alt="TikTok">
                 <span>TIKTOK</span>
             </div>
 
-            <div class="glass-card" data-category="apps" style="display: none;" onclick="openApp('https://now.gg/play/roblox-corporation/5349/roblox')">
+            <div class="glass-card" data-category="apps" style="display: none;" onclick="launchRoblox()">
                 <img src="https://upload.wikimedia.org/wikipedia/commons/3/3a/Roblox_player_icon_black.svg" style="filter: invert(1); border-radius: 0; object-fit: contain;" alt="Roblox">
                 <span>ROBLOX</span>
             </div>
@@ -342,7 +341,7 @@
                 </button>
             </div>
             
-            <iframe id="main-frame" src="" tabindex="0" allowfullscreen="true" allow="autoplay; fullscreen; pointer-lock; keyboard-map"></iframe>
+            <iframe id="main-frame" src="" tabindex="0" allowfullscreen="true" allow="autoplay; fullscreen; pointer-lock; keyboard-map; microphone; camera"></iframe>
         </div>
 
     </div>
@@ -351,11 +350,9 @@
         const iframe = document.getElementById('main-frame');
         let currentCategory = 'games';
 
-        // Switches between GAMES and APPS tabs
         function switchCategory(category) {
             currentCategory = category;
 
-            // If an app is currently open, close it and return to dashboard
             if (document.getElementById('app-viewer').style.display === 'flex') {
                 closeApp();
             }
@@ -367,7 +364,6 @@
             filterCards();
         }
 
-        // Filters cards by both active tab (Games/Apps) and Search Bar text
         function filterCards() {
             const query = document.getElementById('search-input').value.toLowerCase();
             const cards = document.querySelectorAll('.glass-card');
@@ -381,24 +377,99 @@
             });
         }
 
-        function openApp(url) {
+        function showViewer() {
             if (document.activeElement) document.activeElement.blur();
             document.getElementById('category-title').style.display = 'none';
             document.getElementById('dashboard').style.display = 'none';
             document.getElementById('app-viewer').style.display = 'flex';
-            
+        }
+
+        function openApp(url) {
+            showViewer();
             iframe.removeAttribute('srcdoc');
             const separator = url.includes('?') ? '&' : '?';
             iframe.src = url + separator + 'nocache=' + Date.now();
         }
 
-        // Multi-Server BuildNow GG Loader (Fetches Single-File Build directly from jsDelivr + Working Mirrors)
-        function launchBuildNow() {
-            if (document.activeElement) document.activeElement.blur();
-            document.getElementById('category-title').style.display = 'none';
-            document.getElementById('dashboard').style.display = 'none';
-            document.getElementById('app-viewer').style.display = 'flex';
+        // Reusable Multi-Server App Launcher (Used for TikTok & Roblox so no separate HTML files are needed!)
+        function launchMultiServerApp(appName, servers) {
+            showViewer();
+            iframe.src = "about:blank";
 
+            const buttonsHtml = servers.map((srv, idx) => 
+                `<button class="srv-btn ${idx === 0 ? 'active' : ''}" onclick="switchSrv('${srv.url}', this)">${srv.name}</button>`
+            ).join('');
+
+            iframe.srcdoc = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0d0d12; font-family: sans-serif; display: flex; flex-direction: column; }
+        .server-bar { min-height: 40px; background: #14141d; border-bottom: 1px solid rgba(0,255,136,0.3); display: flex; align-items: center; gap: 8px; padding: 6px 12px; font-size: 12px; color: #aaa; z-index: 20; flex-wrap: wrap; }
+        .srv-btn { background: rgba(0,255,136,0.1); color: #00ff88; border: 1px solid #00ff88; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; transition: 0.2s; }
+        .srv-btn:hover, .srv-btn.active { background: #00ff88; color: #000; }
+        .custom-box { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+        .custom-input { background: #000; border: 1px solid #444; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; width: 200px; outline: none; }
+        .custom-input:focus { border-color: #00ff88; }
+        #game-wrap { flex: 1; position: relative; width: 100%; height: 100%; }
+        iframe { width: 100%; height: 100%; border: none; background: #0a0a0f; display: block; }
+    </style>
+</head>
+<body>
+    <div class="server-bar">
+        <span>${appName} SERVERS:</span>
+        ${buttonsHtml}
+        <div class="custom-box">
+            <input type="text" id="custom-url" class="custom-input" placeholder="Paste custom proxy/mirror link...">
+            <button class="srv-btn" onclick="loadCustom()">GO</button>
+        </div>
+    </div>
+    <div id="game-wrap">
+        <iframe id="inner-frame" src="${servers[0].url}" allowfullscreen="true" allow="autoplay; fullscreen; pointer-lock; keyboard-map; microphone; camera"></iframe>
+    </div>
+    <script>
+        function switchSrv(url, btn) {
+            document.querySelectorAll('.srv-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            const f = document.getElementById('inner-frame');
+            f.src = url;
+            f.onload = () => f.focus();
+        }
+        function loadCustom() {
+            let val = document.getElementById('custom-url').value.trim();
+            if (!val) return;
+            if (!val.startsWith('http')) val = 'https://' + val;
+            switchSrv(val, null);
+        }
+    <\/script>
+</body>
+</html>`;
+        }
+
+        // TIKTOK LAUNCHER (Uses Embeddable ProxiTok Viewers + Unblocked Web Proxies)
+        function launchTikTok() {
+            launchMultiServerApp('TIKTOK', [
+                { name: 'Server 1 (ProxiTok Trending)', url: 'https://proxitok.pabloferreiro.es/trending' },
+                { name: 'Server 2 (ProxiTok Backup)', url: 'https://tok.habedieeh.re/trending' },
+                { name: 'Server 3 (OffTikTok Viewer)', url: 'https://www.offtiktok.com/' },
+                { name: 'Server 4 (UrleBird TikTok)', url: 'https://urlebird.com/trending/' }
+            ]);
+        }
+
+        // ROBLOX LAUNCHER (Uses Cloud Gaming Mirrors + Unblocked Portals)
+        function launchRoblox() {
+            launchMultiServerApp('ROBLOX', [
+                { name: 'Server 1 (Frogies Cloud Hub)', url: 'https://frogiesarcade.win/' },
+                { name: 'Server 2 (Selenite Portal)', url: 'https://selenite.cc/' },
+                { name: 'Server 3 (NowGG Direct)', url: 'https://now.gg/apps/roblox-corporation/5349/roblox.html' },
+                { name: 'Server 4 (Szvy Central Proxy)', url: 'https://szvy.win/' }
+            ]);
+        }
+
+        // BUILDNOW GG LAUNCHER
+        function launchBuildNow() {
+            showViewer();
             iframe.src = "about:blank";
             iframe.srcdoc = `<!DOCTYPE html>
 <html lang="en">
@@ -444,7 +515,6 @@
             const wrap = document.getElementById('game-wrap');
             wrap.innerHTML = '<div id="status-msg">FETCHING BUILDNOW ENGINE FROM JSDELIVR...</div>';
             try {
-                // Pulls the complete single-file BuildNow HTML straight from jsDelivr NPM package
                 const res = await fetch('https://cdn.jsdelivr.net/npm/ugs-singlefiles@1.0.6/UGS-Files/clbuildnowgg.html');
                 if (!res.ok) throw new Error('CDN response not ok');
                 const htmlCode = await res.text();
@@ -454,7 +524,6 @@
                 f.srcdoc = htmlCode;
                 f.onload = () => f.focus();
             } catch (e) {
-                // Automatic fallback to Server 2 if jsDelivr fails
                 loadDirectUrl('https://genizymath.github.io/games/buildnowgg/', document.querySelectorAll('.srv-btn')[1]);
             }
         }
