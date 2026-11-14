@@ -33,6 +33,7 @@
             display: flex;
             flex-direction: column;
             padding: 20px;
+            transition: all 0.2s ease;
         }
 
         .logo {
@@ -149,7 +150,7 @@
             border-bottom: 1px solid rgba(0, 255, 136, 0.3);
             display: flex;
             align-items: center;
-            gap: 15px; /* Keeps buttons side-by-side on the left */
+            gap: 15px;
             padding: 0 20px;
         }
 
@@ -183,9 +184,47 @@
             background: #000;
             outline: none;
         }
+
+        /* --- Theater Mode (Hides UI so Esc never breaks fullscreen) --- */
+        body.theater-active .sidebar,
+        body.theater-active .viewer-header {
+            display: none !important;
+        }
+
+        #exit-theater-btn {
+            display: none;
+            position: fixed;
+            top: 8px;
+            left: 8px;
+            z-index: 9999;
+            background: rgba(10, 10, 15, 0.75);
+            color: #00ff88;
+            border: 1px solid rgba(0, 255, 136, 0.4);
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            opacity: 0.35;
+            transition: opacity 0.2s;
+        }
+
+        #exit-theater-btn:hover {
+            opacity: 1;
+            background: #00ff88;
+            color: #000;
+        }
+
+        body.theater-active #exit-theater-btn {
+            display: block;
+        }
     </style>
 </head>
 <body>
+
+    <!-- Small floating button to bring back menu when in Max Window mode -->
+    <button id="exit-theater-btn" onclick="toggleTheaterMode()">SHOW MENU</button>
 
     <!-- Sidebar / OS Menu -->
     <div class="sidebar">
@@ -209,6 +248,7 @@
                 <span>BUILDNOW</span>
             </div>
 
+            <!-- TIKTOK RESTORED -->
             <div class="glass-card tiktok-card" onclick="openApp('https://YOUR_PROXY_LINK_HERE.com/tiktok')">
                 <img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" style="filter: invert(1);" alt="TikTok">
                 <span>TIKTOK</span>
@@ -228,14 +268,18 @@
                     <span>←</span> SYSTEM RETURN
                 </button>
                 
-                <!-- FULLSCREEN BUTTON RIGHT NEXT TO RETURN BUTTON -->
+                <!-- Best for Minecraft: Fills window & NEVER exits when pressing Esc -->
+                <button class="action-btn" onclick="toggleTheaterMode()">
+                    <span>[ ]</span> MAX WINDOW (NO ESC BUG)
+                </button>
+
+                <!-- Browser Fullscreen with Keyboard Escape Lock -->
                 <button class="action-btn" onclick="goFullscreen()">
-                    <span>⛶</span> FULLSCREEN
+                    <span>⛶</span> FULLSCREEN (HOLD ESC TO EXIT)
                 </button>
             </div>
             
-            <!-- Clean iframe permissions so keys, typing, and mouse lock work without glitching -->
-            <iframe id="main-frame" src="" tabindex="0" allowfullscreen="true" allow="autoplay; fullscreen; pointer-lock"></iframe>
+            <iframe id="main-frame" src="" tabindex="0" allowfullscreen="true" allow="autoplay; fullscreen; pointer-lock; keyboard-map"></iframe>
         </div>
 
     </div>
@@ -244,7 +288,6 @@
         const iframe = document.getElementById('main-frame');
 
         function openApp(url) {
-            // Unfocus any buttons on the main page so they don't steal keyboard input
             if (document.activeElement) {
                 document.activeElement.blur();
             }
@@ -254,7 +297,6 @@
             iframe.src = url;
         }
 
-        // Automatically gives keyboard control to the game the exact moment it finishes loading
         iframe.addEventListener('load', () => {
             if (iframe.src && iframe.src !== window.location.href) {
                 iframe.focus();
@@ -265,17 +307,41 @@
         });
 
         function closeApp() {
+            document.body.classList.remove('theater-active');
             document.getElementById('dashboard').style.display = 'grid';
             document.getElementById('app-viewer').style.display = 'none';
             iframe.src = ""; 
         }
 
-        // Fullscreen Logic + Instant Keyboard Focus
-        function goFullscreen() {
-            if (iframe.requestFullscreen) {
-                iframe.requestFullscreen();
-            } else if (iframe.webkitRequestFullscreen) { 
-                iframe.webkitRequestFullscreen();
+        // Option 1: Expands game across the whole tab so Esc never kicks you out
+        function toggleTheaterMode() {
+            document.body.classList.toggle('theater-active');
+            setTimeout(() => {
+                iframe.focus();
+                if (iframe.contentWindow) {
+                    iframe.contentWindow.focus();
+                }
+            }, 100);
+        }
+
+        // Option 2: Native Fullscreen + Locks the Escape key so single-tap Esc stays in Minecraft
+        async function goFullscreen() {
+            try {
+                if (document.documentElement.requestFullscreen) {
+                    await document.documentElement.requestFullscreen();
+                } else if (document.documentElement.webkitRequestFullscreen) { 
+                    await document.documentElement.webkitRequestFullscreen();
+                }
+                
+                // Hides the Vertex OS bars while in fullscreen
+                document.body.classList.add('theater-active');
+
+                // Locks the Escape key so tapping Esc only opens Minecraft pause menu
+                if (navigator.keyboard && navigator.keyboard.lock) {
+                    await navigator.keyboard.lock(['Escape']);
+                }
+            } catch (err) {
+                console.log("Fullscreen error:", err);
             }
             
             setTimeout(() => {
@@ -285,6 +351,16 @@
                 }
             }, 100);
         }
+
+        // Restores UI if you hold Esc to exit fullscreen
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement) {
+                document.body.classList.remove('theater-active');
+                if (navigator.keyboard && navigator.keyboard.unlock) {
+                    navigator.keyboard.unlock();
+                }
+            }
+        });
 
         // Tab Cloaking
         const favicon = document.getElementById("favicon");
