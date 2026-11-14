@@ -2,68 +2,99 @@
 <html lang="en-us">
 <head>
     <meta charset="utf-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <base href="https://cdn.jsdelivr.net/gh/bubblfan/cg-rip@main/buildnow-gg/">
     <title>BuildNow GG</title>
     <style>
         html, body {
-            width: 100%;
-            height: 100%;
             margin: 0;
             padding: 0;
-            overflow: hidden;
-            background-color: #111;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: sans-serif;
-            color: #00ff88;
-        }
-        #unity-canvas {
             width: 100%;
             height: 100%;
-            background: #111;
+            overflow: hidden;
+            background: #0d0d12;
+            font-family: 'Rajdhani', sans-serif;
+        }
+        #unity-canvas {
+            width: 100vw;
+            height: 100vh;
+            background: #000;
             display: block;
         }
-        #loading-text {
+        #loading-box {
             position: absolute;
-            font-size: 20px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #00ff88;
+            font-size: 22px;
             font-weight: bold;
-            letter-spacing: 1px;
+            text-align: center;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.4);
+            z-index: 10;
         }
     </style>
 </head>
 <body>
-    <div id="loading-text">LOADING BUILDNOW ENGINE... 0%</div>
+    <div id="loading-box">DOWNLOADING BUILDNOW ENGINE... (1/2)</div>
     <canvas id="unity-canvas" tabindex="-1"></canvas>
 
     <script>
-        const canvas = document.querySelector("#unity-canvas");
-        const loadingText = document.querySelector("#loading-text");
+        const loadingBox = document.getElementById("loading-box");
+        const canvas = document.getElementById("unity-canvas");
+        const baseCdn = "https://cdn.jsdelivr.net/gh/bubblfan/cg-rip@main/buildnow-gg/Build/";
 
-        // Pulls raw Unity engine files directly from jsDelivr CDN (No Snokido!)
-        const buildUrl = "https://cdn.jsdelivr.net/gh/bubbls/UGS-Assets@main/buildnow-gg/Build";
-        const loaderUrl = buildUrl + "/BuildNowGG.loader.js";
+        // Merges split CDN chunks so jsDelivr doesn't block the large Unity files
+        async function mergeParts(fileName) {
+            const parts = [];
+            for (let i = 1; i <= 99; i++) {
+                const partUrl = baseCdn + fileName + ".part" + i;
+                try {
+                    const res = await fetch(partUrl);
+                    if (!res.ok) break;
+                    parts.push(await res.arrayBuffer());
+                } catch (e) {
+                    break;
+                }
+            }
+            const blob = new Blob(parts, { type: "application/octet-stream" });
+            return URL.createObjectURL(blob);
+        }
 
-        const config = {
-            dataUrl: buildUrl + "/BuildNowGG.data.unityweb",
-            frameworkUrl: buildUrl + "/BuildNowGG.framework.js.unityweb",
-            codeUrl: buildUrl + "/BuildNowGG.wasm.unityweb",
-            streamingAssetsUrl: "StreamingAssets",
-            companyName: "BattleLab",
-            productName: "BuildNow GG",
-            productVersion: "1.0",
-        };
+        async function bootGame() {
+            try {
+                loadingBox.innerText = "ASSEMBLING GAME FILES (1/2)...";
+                const wasmBlobUrl = await mergeParts("7db022abd161455e3cc5f207e75d294b.wasm");
+                
+                loadingBox.innerText = "ASSEMBLING GAME FILES (2/2)...";
+                const dataBlobUrl = await mergeParts("ab8dd356a41a2943639294657a0990f8.data");
 
-        const script = document.createElement("script");
-        script.src = loaderUrl;
-        script.onload = () => {
-            createUnityInstance(canvas, config, (progress) => {
-                loadingText.innerText = "LOADING BUILDNOW ENGINE... " + Math.round(progress * 100) + "%";
-            }).then((unityInstance) => {
-                loadingText.style.display = "none";
-                canvas.focus();
-            }).catch((message) => {
-                loadingText.innerText = "Engine Error: Trying Backup Mirror...";
-                // Automatic fallback to GitHub Pages mirror if CDN fails
-                window.location.href = "https://ubg77.github.io/edit/buildnow-gg/";
-            });
+                const config = {
+                    dataUrl: dataBlobUrl,
+                    frameworkUrl: baseCdn + "91a2bfcec140bc524100478b99a4f6d7.framework.js",
+                    codeUrl: wasmBlobUrl,
+                    streamingAssetsUrl: "StreamingAssets",
+                    companyName: "BattleLab",
+                    productName: "BuildNow GG",
+                    productVersion: "1.0"
+                };
+
+                const script = document.createElement("script");
+                script.src = baseCdn + "7a2dbded24d57e056180125b1583e7c4.loader.js";
+                script.onload = () => {
+                    createUnityInstance(canvas, config, (progress) => {
+                        loadingBox.innerText = "BOOTING ENGINE... " + Math.round(progress * 100) + "%";
+                    }).then(() => {
+                        loadingBox.style.display = "none";
+                        canvas.focus();
+                    });
+                };
+                document.body.appendChild(script);
+            } catch (err) {
+                loadingBox.innerText = "Error loading engine: " + err.message;
+            }
+        }
+
+        bootGame();
+    </script>
+</body>
+</html>
