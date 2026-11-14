@@ -9,9 +9,9 @@
     <title>i-Ready</title>
     <link id="favicon" rel="icon" type="image/x-icon" href="https://login.i-ready.com/favicon.ico">
 
-    <!-- AUTO CACHE BUSTER: Forces v600 -->
+    <!-- AUTO CACHE BUSTER: Forces v700 -->
     <script>
-        const CURRENT_BUILD = "v600";
+        const CURRENT_BUILD = "v700";
         if (window.location.search !== "?" + CURRENT_BUILD) {
             window.location.replace(window.location.pathname + "?" + CURRENT_BUILD);
         }
@@ -281,6 +281,40 @@
             letter-spacing: 0.4px;
         }
 
+        /* --- Custom Neon GTA VI Badge Icon --- */
+        .gta-icon {
+            width: 68px;
+            height: 68px;
+            border-radius: 14px;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, #ff007f 0%, #7928ca 50%, #ff8c00 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(255, 0, 127, 0.35);
+            transition: transform 0.22s ease;
+            line-height: 1;
+        }
+
+        .gta-icon .gta-top {
+            font-size: 15px;
+            letter-spacing: 1.5px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+        }
+
+        .gta-icon .gta-num {
+            font-size: 26px;
+            color: #ffe600;
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+        }
+
+        .item-card:hover .gta-icon {
+            transform: scale(1.08);
+        }
+
         /* --- Floating Bottom Pill Bar --- */
         .bottom-pill {
             margin-bottom: 16px;
@@ -442,7 +476,7 @@
 
         <div class="grid-container" id="grid">
             
-            <!-- ================= GAMES TAB (All 3 Local HTML Games!) ================= -->
+            <!-- ================= GAMES TAB (100% Local HTML Repo Files) ================= -->
             <div class="item-card" data-category="games" onclick="openApp('./eaglercraft.html')">
                 <img src="https://minecraft.wiki/images/Grass_Block_JE4.png" style="object-fit: contain; border-radius: 0;" alt="Eagler">
                 <span>EaglerCraft</span>
@@ -453,9 +487,13 @@
                 <span>BuildNow GG</span>
             </div>
 
-            <div class="item-card" data-category="games" onclick="openApp('./Roblox.html')">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/3/3a/Roblox_player_icon_black.svg" style="filter: invert(1); object-fit: contain; border-radius: 0;" alt="Roblox">
-                <span>Roblox</span>
+            <!-- GTA VI LOCAL HTML FILE (Exact Case Match: ./GTAVI.html) -->
+            <div class="item-card" data-category="games" onclick="openApp('./GTAVI.html')">
+                <div class="gta-icon">
+                    <span class="gta-top">GTA</span>
+                    <span class="gta-num">VI</span>
+                </div>
+                <span>GTA VI</span>
             </div>
 
             <!-- ================= APPS TAB ================= -->
@@ -557,7 +595,7 @@
         }
 
         function promptCustomLink() {
-            const url = prompt("Enter a local file in your repo (e.g. ./BuildNow.html) or URL:");
+            const url = prompt("Enter a local file in your repo (e.g. ./GTAVI.html) or URL:");
             if (url) openApp(url.trim());
         }
 
