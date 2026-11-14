@@ -307,7 +307,8 @@
                 <span>EAGLER</span>
             </div>
             
-            <div class="glass-card" data-category="games" onclick="launchBuildNow()">
+            <!-- OPENS YOUR LOCAL ./BuildNow.html FILE (EXACT CASE MATCH) -->
+            <div class="glass-card" data-category="games" onclick="openApp('./BuildNow.html')">
                 <img src="https://play-lh.googleusercontent.com/Jkx-IPLeRDk4uKeDyIMWKQ6jv9RquAC0WErGzWIMZQK7Z8FKzsqbUtC0J7vTm24xIqnme3TZR-6a8WAj6EXP_DA=s256-rw" alt="BuildNow">
                 <span>BUILDNOW</span>
             </div>
@@ -391,7 +392,6 @@
             iframe.src = url + separator + 'nocache=' + Date.now();
         }
 
-        // Reusable Multi-Server App Launcher (Used for TikTok & Roblox so no separate HTML files are needed!)
         function launchMultiServerApp(appName, servers) {
             showViewer();
             iframe.src = "about:blank";
@@ -447,91 +447,20 @@
 </html>`;
         }
 
-        // TIKTOK LAUNCHER (Uses Embeddable ProxiTok Viewers + Unblocked Web Proxies)
         function launchTikTok() {
             launchMultiServerApp('TIKTOK', [
-                { name: 'Server 1 (ProxiTok Trending)', url: 'https://proxitok.pabloferreiro.es/trending' },
-                { name: 'Server 2 (ProxiTok Backup)', url: 'https://tok.habedieeh.re/trending' },
-                { name: 'Server 3 (OffTikTok Viewer)', url: 'https://www.offtiktok.com/' },
-                { name: 'Server 4 (UrleBird TikTok)', url: 'https://urlebird.com/trending/' }
+                { name: 'Server 1 (ProxiTok)', url: 'https://proxitok.pabloferreiro.es/trending' },
+                { name: 'Server 2 (OffTikTok)', url: 'https://www.offtiktok.com/' },
+                { name: 'Server 3 (UrleBird)', url: 'https://urlebird.com/trending/' }
             ]);
         }
 
-        // ROBLOX LAUNCHER (Uses Cloud Gaming Mirrors + Unblocked Portals)
         function launchRoblox() {
             launchMultiServerApp('ROBLOX', [
-                { name: 'Server 1 (Frogies Cloud Hub)', url: 'https://frogiesarcade.win/' },
-                { name: 'Server 2 (Selenite Portal)', url: 'https://selenite.cc/' },
-                { name: 'Server 3 (NowGG Direct)', url: 'https://now.gg/apps/roblox-corporation/5349/roblox.html' },
-                { name: 'Server 4 (Szvy Central Proxy)', url: 'https://szvy.win/' }
+                { name: 'Server 1 (Frogies Hub)', url: 'https://frogiesarcade.win/' },
+                { name: 'Server 2 (Selenite)', url: 'https://selenite.cc/' },
+                { name: 'Server 3 (Szvy Central)', url: 'https://szvy.win/' }
             ]);
-        }
-
-        // BUILDNOW GG LAUNCHER
-        function launchBuildNow() {
-            showViewer();
-            iframe.src = "about:blank";
-            iframe.srcdoc = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <style>
-        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0d0d12; font-family: sans-serif; display: flex; flex-direction: column; }
-        .server-bar { height: 36px; background: #14141d; border-bottom: 1px solid rgba(0,255,136,0.3); display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size: 12px; color: #aaa; z-index: 20; }
-        .srv-btn { background: rgba(0,255,136,0.1); color: #00ff88; border: 1px solid #00ff88; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; }
-        .srv-btn:hover, .srv-btn.active { background: #00ff88; color: #000; }
-        #game-wrap { flex: 1; position: relative; width: 100%; height: 100%; }
-        iframe { width: 100%; height: 100%; border: none; background: #000; display: block; }
-        #status-msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ff88; font-weight: bold; font-size: 18px; text-align: center; }
-    </style>
-</head>
-<body>
-    <div class="server-bar">
-        <span>BUILDNOW SERVERS:</span>
-        <button class="srv-btn active" onclick="loadSingleFileCDN(this)">Server 1 (jsDelivr Direct)</button>
-        <button class="srv-btn" onclick="loadDirectUrl('https://genizymath.github.io/games/buildnowgg/', this)">Server 2 (GN-Math)</button>
-        <button class="srv-btn" onclick="loadDirectUrl('https://ashton20271.github.io/unblockedgames/clbuildnowgg.html', this)">Server 3 (Ashton GitHub)</button>
-        <button class="srv-btn" onclick="loadDirectUrl('https://build-now-gg.github.io/', this)">Server 4 (Build-Now-GG)</button>
-    </div>
-    <div id="game-wrap">
-        <div id="status-msg">FETCHING BUILDNOW ENGINE FROM JSDELIVR...</div>
-    </div>
-    <script>
-        function setActive(btn) {
-            document.querySelectorAll('.srv-btn').forEach(b => b.classList.remove('active'));
-            if (btn) btn.classList.add('active');
-        }
-
-        function loadDirectUrl(url, btn) {
-            setActive(btn);
-            const wrap = document.getElementById('game-wrap');
-            wrap.innerHTML = '<iframe id="inner-game" src="' + url + '" allowfullscreen="true" allow="autoplay; fullscreen; pointer-lock; keyboard-map"></iframe>';
-            const f = document.getElementById('inner-game');
-            f.onload = () => f.focus();
-        }
-
-        async function loadSingleFileCDN(btn) {
-            setActive(btn);
-            const wrap = document.getElementById('game-wrap');
-            wrap.innerHTML = '<div id="status-msg">FETCHING BUILDNOW ENGINE FROM JSDELIVR...</div>';
-            try {
-                const res = await fetch('https://cdn.jsdelivr.net/npm/ugs-singlefiles@1.0.6/UGS-Files/clbuildnowgg.html');
-                if (!res.ok) throw new Error('CDN response not ok');
-                const htmlCode = await res.text();
-                
-                wrap.innerHTML = '<iframe id="inner-game" allowfullscreen="true" allow="autoplay; fullscreen; pointer-lock; keyboard-map"></iframe>';
-                const f = document.getElementById('inner-game');
-                f.srcdoc = htmlCode;
-                f.onload = () => f.focus();
-            } catch (e) {
-                loadDirectUrl('https://genizymath.github.io/games/buildnowgg/', document.querySelectorAll('.srv-btn')[1]);
-            }
-        }
-
-        loadSingleFileCDN(document.querySelector('.srv-btn'));
-    <\/script>
-</body>
-</html>`;
         }
 
         iframe.addEventListener('load', () => {
