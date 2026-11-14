@@ -33,7 +33,6 @@
             display: flex;
             flex-direction: column;
             padding: 20px;
-            overflow-y: auto;
         }
 
         .logo {
@@ -65,34 +64,43 @@
             border-color: #00ff88;
         }
 
-        /* --- Sidebar Categories --- */
-        .nav-category {
-            font-size: 13px;
+        /* --- Sidebar Category Tabs --- */
+        .nav-tabs {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .tab-btn {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: #aaa;
+            padding: 14px 18px;
+            border-radius: 10px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 15px;
             font-weight: 700;
-            color: #00ff88;
             letter-spacing: 1.5px;
-            margin-top: 15px;
-            margin-bottom: 8px;
-            padding-left: 5px;
-            text-transform: uppercase;
-            border-left: 3px solid #00ff88;
-        }
-
-        .nav-link {
-            padding: 10px 12px;
-            color: #bbb;
-            font-size: 16px;
-            font-weight: 600;
             cursor: pointer;
-            border-radius: 6px;
-            transition: all 0.2s;
-            margin-bottom: 4px;
+            text-align: left;
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
 
-        .nav-link:hover {
+        .tab-btn:hover {
             background: rgba(0, 255, 136, 0.08);
+            color: #fff;
+            border-color: rgba(0, 255, 136, 0.4);
+            transform: translateX(4px);
+        }
+
+        .tab-btn.active {
+            background: rgba(0, 255, 136, 0.15);
             color: #00ff88;
-            padding-left: 16px;
+            border-color: #00ff88;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.2);
         }
 
         /* --- Main Content Area --- */
@@ -103,9 +111,21 @@
             position: relative;
         }
 
+        .category-header {
+            padding: 35px 50px 0 50px;
+            max-width: 1200px;
+            width: 100%;
+            margin: 0 auto;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 22px;
+            color: #00ff88;
+            letter-spacing: 2px;
+            text-shadow: 0 0 8px rgba(0, 255, 136, 0.25);
+        }
+
         /* --- Dashboard Grid --- */
         .dashboard {
-            padding: 50px;
+            padding: 25px 50px 50px 50px;
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
             gap: 25px;
@@ -145,10 +165,11 @@
         }
 
         .glass-card img {
-            width: 64px;
-            height: 64px;
+            width: 72px;
+            height: 72px;
             margin-bottom: 15px;
-            object-fit: contain;
+            object-fit: cover;
+            border-radius: 14px;
             filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));
             transition: transform 0.3s ease;
             z-index: 2;
@@ -183,6 +204,7 @@
             align-items: center;
             gap: 15px;
             padding: 0 20px;
+            flex-wrap: wrap;
         }
 
         .action-btn {
@@ -242,172 +264,4 @@
         }
 
         #exit-theater-btn:hover {
-            opacity: 1;
-            background: #00ff88;
-            color: #000;
-        }
-
-        body.theater-active #exit-theater-btn {
-            display: block;
-        }
-    </style>
-</head>
-<body>
-
-    <button id="exit-theater-btn" onclick="toggleTheaterMode()">SHOW MENU</button>
-
-    <!-- Sidebar / OS Menu with Categories -->
-    <div class="sidebar">
-        <div class="logo">VERTEX<br>OS</div>
-        <input type="text" class="search-box" placeholder="Search systems...">
-
-        <div class="nav-category">Games</div>
-        <div class="nav-link" onclick="openApp('./eaglercraft.html')">Minecraft (Eagler)</div>
-        <div class="nav-link" onclick="openApp('https://buildnow-gg.github.io/')">BuildNow GG</div>
-
-        <div class="nav-category" style="margin-top: 25px;">Apps</div>
-        <div class="nav-link" onclick="openApp('https://YOUR_PROXY_LINK_HERE.com/tiktok')">TikTok</div>
-        <div class="nav-link" onclick="openApp('https://now.gg/play/roblox-corporation/5349/roblox')">Roblox</div>
-    </div>
-
-    <!-- Main OS Workspace -->
-    <div class="main-content">
-        
-        <!-- Dashboard App Grid -->
-        <div class="dashboard" id="dashboard">
-            
-            <div class="glass-card" onclick="openApp('./eaglercraft.html')">
-                <img src="https://minecraft.wiki/images/Grass_Block_JE4.png" alt="Eagler">
-                <span>EAGLER</span>
-            </div>
-            
-            <!-- CORRECTED BUILDNOW LOGO -->
-            <div class="glass-card" onclick="openApp('https://buildnow-gg.github.io/')">
-                <img src="https://cdn-icons-png.flaticon.com/512/2921/2921222.png" style="filter: invert(1);" alt="BuildNow">
-                <span>BUILDNOW</span>
-            </div>
-
-            <div class="glass-card tiktok-card" onclick="openApp('https://YOUR_PROXY_LINK_HERE.com/tiktok')">
-                <img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" style="filter: invert(1);" alt="TikTok">
-                <span>TIKTOK</span>
-            </div>
-
-            <div class="glass-card" onclick="openApp('https://now.gg/play/roblox-corporation/5349/roblox')">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/3/3a/Roblox_player_icon_black.svg" style="filter: invert(1);" alt="Roblox">
-                <span>ROBLOX</span>
-            </div>
-            
-        </div>
-
-        <!-- Hidden Iframe Viewer -->
-        <div id="app-viewer">
-            <div class="viewer-header">
-                <button class="action-btn" onclick="closeApp()">
-                    <span>←</span> SYSTEM RETURN
-                </button>
-                
-                <button class="action-btn" onclick="toggleTheaterMode()">
-                    <span>[ ]</span> MAX WINDOW (NO ESC BUG)
-                </button>
-
-                <button class="action-btn" onclick="goFullscreen()">
-                    <span>⛶</span> FULLSCREEN (HOLD ESC TO EXIT)
-                </button>
-            </div>
-            
-            <iframe id="main-frame" src="" tabindex="0" allowfullscreen="true" allow="autoplay; fullscreen; pointer-lock; keyboard-map"></iframe>
-        </div>
-
-    </div>
-
-    <script>
-        const iframe = document.getElementById('main-frame');
-
-        function openApp(url) {
-            if (document.activeElement) document.activeElement.blur();
-            document.getElementById('dashboard').style.display = 'none';
-            document.getElementById('app-viewer').style.display = 'flex';
-            
-            const separator = url.includes('?') ? '&' : '?';
-            iframe.src = url + separator + 'nocache=' + Date.now();
-        }
-
-        iframe.addEventListener('load', () => {
-            if (iframe.src && iframe.src !== window.location.href) {
-                iframe.focus();
-                if (iframe.contentWindow) {
-                    iframe.contentWindow.focus();
-                }
-            }
-        });
-
-        function closeApp() {
-            document.body.classList.remove('theater-active');
-            document.getElementById('dashboard').style.display = 'grid';
-            document.getElementById('app-viewer').style.display = 'none';
-            iframe.src = ""; 
-        }
-
-        function toggleTheaterMode() {
-            document.body.classList.toggle('theater-active');
-            setTimeout(() => {
-                iframe.focus();
-                if (iframe.contentWindow) {
-                    iframe.contentWindow.focus();
-                }
-            }, 100);
-        }
-
-        async function goFullscreen() {
-            try {
-                if (document.documentElement.requestFullscreen) {
-                    await document.documentElement.requestFullscreen();
-                } else if (document.documentElement.webkitRequestFullscreen) { 
-                    await document.documentElement.webkitRequestFullscreen();
-                }
-                
-                document.body.classList.add('theater-active');
-
-                if (navigator.keyboard && navigator.keyboard.lock) {
-                    await navigator.keyboard.lock(['Escape']);
-                }
-            } catch (err) {
-                console.log("Fullscreen error:", err);
-            }
-            
-            setTimeout(() => {
-                iframe.focus();
-                if (iframe.contentWindow) {
-                    iframe.contentWindow.focus();
-                }
-            }, 100);
-        }
-
-        document.addEventListener('fullscreenchange', () => {
-            if (!document.fullscreenElement) {
-                document.body.classList.remove('theater-active');
-                if (navigator.keyboard && navigator.keyboard.unlock) {
-                    navigator.keyboard.unlock();
-                }
-            }
-        });
-
-        const favicon = document.getElementById("favicon");
-        const googleIcon = "https://www.google.com/favicon.ico";
-
-        function disguise() { 
-            document.title = "New Tab"; 
-            favicon.href = googleIcon; 
-        }
-        
-        function restore() { 
-            document.title = "i-Ready"; 
-            favicon.href = "https://login.i-ready.com/favicon.ico"; 
-        }
-
-        document.addEventListener("visibilitychange", () => { document.hidden ? disguise() : restore(); });
-        window.addEventListener("blur", disguise);
-        window.addEventListener("focus", restore);
-    </script>
-</body>
-</html>
+            opacity
