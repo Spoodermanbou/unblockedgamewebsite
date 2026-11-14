@@ -440,19 +440,19 @@
                 <span>EaglerCraft</span>
             </div>
 
-            <!-- LOADS YOUR LOCAL ./BuildNow.html FILE DIRECTLY (NO SERVER BARS) -->
             <div class="item-card" data-category="games" onclick="openApp('./BuildNow.html')">
                 <img src="https://play-lh.googleusercontent.com/Jkx-IPLeRDk4uKeDyIMWKQ6jv9RquAC0WErGzWIMZQK7Z8FKzsqbUtC0J7vTm24xIqnme3TZR-6a8WAj6EXP_DA=s256-rw" alt="BuildNow">
                 <span>BuildNow GG</span>
             </div>
 
             <!-- APPS TAB -->
-            <div class="item-card" data-category="apps" style="display: none;" onclick="openApp('https://www.offtiktok.com/')">
+            <!-- BUILT-IN UNBLOCKABLE TIKTOK FEED PLAYER -->
+            <div class="item-card" data-category="apps" style="display: none;" onclick="launchTikTokApp()">
                 <img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" style="filter: invert(1); object-fit: contain; border-radius: 0;" alt="TikTok">
                 <span>TikTok</span>
             </div>
 
-            <div class="item-card" data-category="apps" style="display: none;" onclick="openApp('https://frogiesarcade.win/')">
+            <div class="item-card" data-category="apps" style="display: none;" onclick="launchRobloxApp()">
                 <img src="https://upload.wikimedia.org/wikipedia/commons/3/3a/Roblox_player_icon_black.svg" style="filter: invert(1); object-fit: contain; border-radius: 0;" alt="Roblox">
                 <span>Roblox</span>
             </div>
@@ -468,19 +468,17 @@
         </div>
 
         <div class="nav-icons">
-            <!-- Settings Gear (Cloak Toggle) -->
             <button class="icon-btn" title="Cloak Tab as Google Docs" onclick="cloakAsDocs()">
                 <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
             </button>
 
-            <!-- Profile Icon -->
             <button class="icon-btn" title="Vertex OS v2.0">
                 <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
             </button>
         </div>
     </div>
 
-    <!-- 5. GAME VIEWER OVERLAY -->
+    <!-- 5. GAME & APP VIEWER OVERLAY -->
     <div id="app-viewer">
         <div class="viewer-bar">
             <button class="ctrl-btn" onclick="closeApp()">← Back</button>
@@ -494,7 +492,7 @@
         const iframe = document.getElementById('main-frame');
         let currentCategory = 'games';
 
-        // 1. Boot Loader Animation (Counts to 674 and fades out)
+        // 1. Boot Loader Animation
         let loadedCount = 0;
         const totalToLoad = 674;
         const counterEl = document.getElementById('load-counter');
@@ -522,7 +520,7 @@
             document.getElementById('online-count').innerText = `online users: ${base + diff}`;
         }, 5000);
 
-        // 3. Category Switching (Games vs Apps)
+        // 3. Category Switching
         function switchCategory(category) {
             currentCategory = category;
             if (document.getElementById('app-viewer').style.display === 'flex') {
@@ -542,12 +540,277 @@
             });
         }
 
-        // 4. Direct App / Local HTML Opener
+        // 4. Local HTML / URL Opener
         function openApp(url) {
             if (document.activeElement) document.activeElement.blur();
             document.getElementById('app-viewer').style.display = 'flex';
+            iframe.removeAttribute('srcdoc');
             const sep = url.includes('?') ? '&' : '?';
             iframe.src = url + sep + 'nocache=' + Date.now();
+        }
+
+        // 5. BUILT-IN NATIVE TIKTOK FOR-YOU PLAYER (Never shows a black screen or X-Frame block!)
+        function launchTikTokApp() {
+            if (document.activeElement) document.activeElement.blur();
+            document.getElementById('app-viewer').style.display = 'flex';
+            iframe.src = "about:blank";
+            iframe.srcdoc = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        body { background: #09090b; color: #fff; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        .tt-header {
+            height: 54px; background: #121216; border-bottom: 1px solid rgba(255,255,255,0.08);
+            display: flex; align-items: center; justify-content: space-between; padding: 0 18px; gap: 12px;
+        }
+        .tt-brand { font-weight: 800; font-size: 18px; display: flex; align-items: center; gap: 6px; letter-spacing: 0.5px; }
+        .tt-brand span { color: #ff0050; text-shadow: -2px 0 #00f2fe; }
+        .tt-search { display: flex; gap: 6px; flex: 1; max-width: 380px; }
+        .tt-search input {
+            flex: 1; background: #1c1c22; border: 1px solid rgba(255,255,255,0.12); color: #fff;
+            padding: 7px 14px; border-radius: 20px; font-size: 13px; outline: none;
+        }
+        .tt-search input:focus { border-color: #00f2fe; }
+        .tt-search button, .chip {
+            background: #ff0050; color: #fff; border: none; padding: 6px 14px;
+            border-radius: 20px; font-size: 12px; font-weight: 700; cursor: pointer; transition: 0.2s;
+        }
+        .tt-chips { display: flex; gap: 6px; overflow-x: auto; }
+        .chip { background: #1f1f26; color: #ccc; }
+        .chip:hover, .chip.active { background: #00f2fe; color: #000; }
+        
+        .tt-stage {
+            flex: 1; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;
+        }
+        .phone-frame {
+            width: 370px; height: calc(100vh - 75px); max-height: 720px; background: #000;
+            border-radius: 18px; border: 1px solid rgba(255,255,255,0.12); position: relative;
+            overflow: hidden; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.8);
+        }
+        video { width: 100%; height: 100%; object-fit: cover; cursor: pointer; background: #000; }
+        .vid-overlay {
+            position: absolute; bottom: 0; left: 0; right: 0; padding: 50px 65px 18px 16px;
+            background: linear-gradient(transparent, rgba(0,0,0,0.9)); pointer-events: none;
+        }
+        .author { font-weight: 800; font-size: 15px; color: #00f2fe; margin-bottom: 6px; }
+        .desc { font-size: 13px; color: #eee; line-height: 1.35; max-height: 54px; overflow: hidden; }
+        
+        .side-actions {
+            position: absolute; right: 12px; bottom: 24px; display: flex; flex-direction: column;
+            align-items: center; gap: 16px; z-index: 10;
+        }
+        .act-item { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+        .act-circle {
+            width: 42px; height: 42px; border-radius: 50%; background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center;
+            font-size: 18px; transition: 0.2s;
+        }
+        .act-circle:hover { background: #ff0050; transform: scale(1.1); }
+        .act-count { font-size: 11px; font-weight: 700; color: #fff; }
+
+        .nav-arrows {
+            display: flex; flex-direction: column; gap: 12px; margin-left: 18px;
+        }
+        .arrow-btn {
+            width: 46px; height: 46px; border-radius: 50%; background: #1a1a22;
+            border: 1px solid rgba(255,255,255,0.15); color: #fff; font-size: 20px;
+            cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center;
+        }
+        .arrow-btn:hover { background: #00f2fe; color: #000; border-color: #00f2fe; }
+        #tt-status { position: absolute; color: #00f2fe; font-weight: 700; font-size: 14px; text-align: center; padding: 20px; }
+    </style>
+</head>
+<body>
+    <div class="tt-header">
+        <div class="tt-brand"><span>♪</span> TikTok FYP</div>
+        <div class="tt-search">
+            <input type="text" id="tt-query" placeholder="Search TikTok videos, games, creators..." onkeydown="if(event.key==='Enter') searchVideos()">
+            <button onclick="searchVideos()">Search</button>
+        </div>
+        <div class="tt-chips">
+            <button class="chip active" onclick="quickTag('trending fyp', this)">🔥 FYP</button>
+            <button class="chip" onclick="quickTag('gaming clips', this)">🎮 Gaming</button>
+            <button class="chip" onclick="quickTag('minecraft', this)">⛏️ Minecraft</button>
+            <button class="chip" onclick="quickTag('fortnite', this)">⚡ Fortnite</button>
+            <button class="chip" onclick="quickTag('bmx bike wheelie', this)">🚲 BMX</button>
+            <button class="chip" onclick="quickTag('funny memes', this)">😂 Memes</button>
+        </div>
+    </div>
+
+    <div class="tt-stage">
+        <div class="phone-frame">
+            <div id="tt-status">Loading For You Feed...</div>
+            <video id="tt-video" playsinline autoplay loop></video>
+            
+            <div class="vid-overlay">
+                <div class="author" id="tt-author">@creator</div>
+                <div class="desc" id="tt-desc">Loading video description...</div>
+            </div>
+
+            <div class="side-actions">
+                <div class="act-item" onclick="this.querySelector('.act-circle').style.background='#ff0050'">
+                    <div class="act-circle">❤️</div>
+                    <div class="act-count" id="tt-likes">0</div>
+                </div>
+                <div class="act-item">
+                    <div class="act-circle">💬</div>
+                    <div class="act-count" id="tt-comments">0</div>
+                </div>
+                <div class="act-item" onclick="nextVid()">
+                    <div class="act-circle">⏭️</div>
+                    <div class="act-count">Next</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="nav-arrows">
+            <button class="arrow-btn" title="Previous Video (Up Arrow)" onclick="prevVid()">▲</button>
+            <button class="arrow-btn" title="Next Video (Down Arrow)" onclick="nextVid()">▼</button>
+        </div>
+    </div>
+
+    <script>
+        let videos = [];
+        let currentIndex = 0;
+        const vidEl = document.getElementById('tt-video');
+        const statusEl = document.getElementById('tt-status');
+
+        vidEl.addEventListener('click', () => {
+            vidEl.paused ? vidEl.play() : vidEl.pause();
+        });
+
+        function formatNum(num) {
+            if (!num) return '0';
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num;
+        }
+
+        async function fetchFeed(keywords) {
+            statusEl.style.display = 'block';
+            statusEl.innerText = 'Loading "' + keywords + '" feed...';
+            vidEl.style.opacity = '0.2';
+            try {
+                const res = await fetch('https://www.tikwm.com/api/feed/search?keywords=' + encodeURIComponent(keywords) + '&count=25');
+                const json = await res.json();
+                if (json && json.data && json.data.videos && json.data.videos.length > 0) {
+                    videos = json.data.videos;
+                    currentIndex = 0;
+                    renderVideo(0);
+                } else {
+                    statusEl.innerText = 'No videos found. Try another search!';
+                }
+            } catch (err) {
+                statusEl.innerText = 'Error connecting to feed API.';
+            }
+        }
+
+        function renderVideo(idx) {
+            if (!videos[idx]) return;
+            const v = videos[idx];
+            statusEl.style.display = 'none';
+            vidEl.style.opacity = '1';
+            vidEl.src = v.play;
+            vidEl.play().catch(() => {});
+            document.getElementById('tt-author').innerText = '@' + (v.author ? v.author.unique_id : 'user');
+            document.getElementById('tt-desc').innerText = v.title || '';
+            document.getElementById('tt-likes').innerText = formatNum(v.digg_count);
+            document.getElementById('tt-comments').innerText = formatNum(v.comment_count);
+        }
+
+        function nextVid() {
+            if (videos.length === 0) return;
+            currentIndex = (currentIndex + 1) % videos.length;
+            renderVideo(currentIndex);
+        }
+
+        function prevVid() {
+            if (videos.length === 0) return;
+            currentIndex = (currentIndex - 1 + videos.length) % videos.length;
+            renderVideo(currentIndex);
+        }
+
+        function searchVideos() {
+            const q = document.getElementById('tt-query').value.trim();
+            if (q) fetchFeed(q);
+        }
+
+        function quickTag(tag, btn) {
+            document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            document.getElementById('tt-query').value = tag;
+            fetchFeed(tag);
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown') nextVid();
+            if (e.key === 'ArrowUp') prevVid();
+        });
+
+        window.addEventListener('wheel', (e) => {
+            if (window._wheelLock) return;
+            window._wheelLock = true;
+            if (e.deltaY > 25) nextVid();
+            else if (e.deltaY < -25) prevVid();
+            setTimeout(() => window._wheelLock = false, 450);
+        });
+
+        // Boot initial FYP feed
+        fetchFeed('trending fyp gaming');
+    <\/script>
+</body>
+</html>`;
+        }
+
+        // 6. ROBLOX CLOUD LAUNCHER
+        function launchRobloxApp() {
+            if (document.activeElement) document.activeElement.blur();
+            document.getElementById('app-viewer').style.display = 'flex';
+            iframe.src = "about:blank";
+            iframe.srcdoc = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0b0b0c; font-family: sans-serif; display: flex; flex-direction: column; }
+        .srv-bar { height: 42px; background: #151518; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; gap: 8px; padding: 0 14px; font-size: 12px; color: #aaa; }
+        .s-btn { background: #1f1f26; color: #00ff88; border: 1px solid #00ff88; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 11px; }
+        .s-btn.active, .s-btn:hover { background: #00ff88; color: #000; }
+        .custom-wrap { margin-left: auto; display: flex; gap: 6px; }
+        .custom-wrap input { background: #000; border: 1px solid #333; color: #fff; padding: 4px 10px; border-radius: 6px; font-size: 11px; width: 220px; }
+        iframe { flex: 1; width: 100%; height: 100%; border: none; background: #000; }
+    </style>
+</head>
+<body>
+    <div class="srv-bar">
+        <span>ROBLOX CLOUD MIRRORS:</span>
+        <button class="s-btn active" onclick="setUrl('https://frogiesarcade.win/', this)">Mirror 1 (Frogie's Hub)</button>
+        <button class="s-btn" onclick="setUrl('https://selenite.cc/', this)">Mirror 2 (Selenite)</button>
+        <button class="s-btn" onclick="setUrl('https://szvy.win/', this)">Mirror 3 (Szvy Central)</button>
+        <div class="custom-wrap">
+            <input type="text" id="cust" placeholder="Paste custom Rammerhead/Now.gg URL...">
+            <button class="s-btn" onclick="loadCust()">GO</button>
+        </div>
+    </div>
+    <iframe id="r-frame" src="https://frogiesarcade.win/" allowfullscreen="true" allow="autoplay; fullscreen; pointer-lock; keyboard-map"></iframe>
+    <script>
+        function setUrl(u, b) {
+            document.querySelectorAll('.s-btn').forEach(x => x.classList.remove('active'));
+            if (b) b.classList.add('active');
+            document.getElementById('r-frame').src = u;
+        }
+        function loadCust() {
+            let v = document.getElementById('cust').value.trim();
+            if (!v) return;
+            if (!v.startsWith('http')) v = 'https://' + v;
+            setUrl(v, null);
+        }
+    <\/script>
+</body>
+</html>`;
         }
 
         function promptCustomLink() {
@@ -556,7 +819,7 @@
         }
 
         iframe.addEventListener('load', () => {
-            if (iframe.src && iframe.src !== window.location.href) {
+            if ((iframe.src && iframe.src !== window.location.href) || iframe.srcdoc) {
                 iframe.focus();
                 if (iframe.contentWindow) iframe.contentWindow.focus();
             }
@@ -565,6 +828,7 @@
         function closeApp() {
             document.body.classList.remove('theater-active');
             document.getElementById('app-viewer').style.display = 'none';
+            iframe.removeAttribute('srcdoc');
             iframe.src = "";
         }
 
@@ -601,7 +865,7 @@
             }
         });
 
-        // 5. Tab Cloaking
+        // 7. Tab Cloaking
         const favicon = document.getElementById("favicon");
         function cloakAsDocs() {
             document.title = "Google Docs";
