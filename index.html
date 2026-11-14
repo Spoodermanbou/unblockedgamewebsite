@@ -106,11 +106,6 @@
             transform: translateY(-5px);
             box-shadow: 0 8px 20px rgba(0, 255, 136, 0.15);
         }
-        
-        .tiktok-card:hover {
-            border-color: #ff0050;
-            box-shadow: -5px 5px 15px rgba(0, 242, 254, 0.2), 5px -5px 15px rgba(255, 0, 80, 0.2);
-        }
 
         .glass-card img {
             width: 64px;
@@ -149,7 +144,7 @@
             border-bottom: 1px solid rgba(0, 255, 136, 0.2);
             display: flex;
             align-items: center;
-            justify-content: space-between; /* Spaces the buttons out */
+            justify-content: space-between; 
             padding: 0 20px;
         }
 
@@ -206,12 +201,6 @@
                 <span>BUILDNOW</span>
             </div>
 
-            <!-- TIKTOK APP (Requires a Proxy Link to bypass filter) -->
-            <div class="glass-card tiktok-card" onclick="openApp('https://YOUR_PROXY_LINK_HERE.com/tiktok')">
-                <img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" style="filter: invert(1);" alt="TikTok">
-                <span>TIKTOK</span>
-            </div>
-
             <div class="glass-card" onclick="openApp('https://now.gg/play/roblox-corporation/5349/roblox')">
                 <img src="https://upload.wikimedia.org/wikipedia/commons/3/3a/Roblox_player_icon_black.svg" style="filter: invert(1);" alt="Roblox">
                 <span>ROBLOX</span>
@@ -226,13 +215,13 @@
                     <span>←</span> SYSTEM RETURN
                 </button>
                 
-                <!-- New Fullscreen Button -->
+                <!-- FULLSCREEN BUTTON -->
                 <button class="action-btn" onclick="goFullscreen()">
                     [ ] FULLSCREEN
                 </button>
             </div>
             
-            <!-- CRITICAL FIX: allowfullscreen and pointer-lock added so keys and mouse locking work -->
+            <!-- IFRAME PERMISSIONS FOR KEYS AND MOUSE LOCK -->
             <iframe id="main-frame" src="" allowfullscreen="true" allow="autoplay; fullscreen; pointer-lock; keyboard-map; microphone; camera" referrerpolicy="strict-origin-when-cross-origin"></iframe>
         </div>
 
@@ -246,7 +235,6 @@
             let iframe = document.getElementById('main-frame');
             iframe.src = url;
             
-            // Forces the browser to hand keyboard focus to the iframe immediately
             setTimeout(() => {
                 iframe.focus();
             }, 500);
@@ -263,10 +251,9 @@
             let iframe = document.getElementById('main-frame');
             if (iframe.requestFullscreen) {
                 iframe.requestFullscreen();
-            } else if (iframe.webkitRequestFullscreen) { // Safari
+            } else if (iframe.webkitRequestFullscreen) { 
                 iframe.webkitRequestFullscreen();
             }
-            // Re-focus the iframe after going fullscreen to ensure keys work
             iframe.focus();
         }
 
