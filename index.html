@@ -256,17 +256,15 @@
 
     <button id="exit-theater-btn" onclick="toggleTheaterMode()">SHOW MENU</button>
 
-    <!-- Sidebar / OS Menu -->
+    <!-- Sidebar / OS Menu with Categories -->
     <div class="sidebar">
         <div class="logo">VERTEX<br>OS</div>
         <input type="text" class="search-box" placeholder="Search systems...">
 
-        <!-- Games Category -->
         <div class="nav-category">Games</div>
         <div class="nav-link" onclick="openApp('./eaglercraft.html')">Minecraft (Eagler)</div>
         <div class="nav-link" onclick="openApp('https://buildnow-gg.github.io/')">BuildNow GG</div>
 
-        <!-- Apps Category -->
         <div class="nav-category" style="margin-top: 25px;">Apps</div>
         <div class="nav-link" onclick="openApp('https://YOUR_PROXY_LINK_HERE.com/tiktok')">TikTok</div>
         <div class="nav-link" onclick="openApp('https://now.gg/play/roblox-corporation/5349/roblox')">Roblox</div>
@@ -283,7 +281,7 @@
                 <span>EAGLER</span>
             </div>
             
-            <!-- FIXED BUILDNOW ICON -->
+            <!-- CORRECTED BUILDNOW LOGO -->
             <div class="glass-card" onclick="openApp('https://buildnow-gg.github.io/')">
                 <img src="https://cdn-icons-png.flaticon.com/512/2921/2921222.png" style="filter: invert(1);" alt="BuildNow">
                 <span>BUILDNOW</span>
@@ -394,7 +392,6 @@
             }
         });
 
-        // Tab Cloaking
         const favicon = document.getElementById("favicon");
         const googleIcon = "https://www.google.com/favicon.ico";
 
