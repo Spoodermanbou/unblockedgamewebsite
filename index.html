@@ -185,7 +185,7 @@
             outline: none;
         }
 
-        /* --- Theater Mode (Hides UI so Esc never breaks fullscreen) --- */
+        /* --- Theater Mode --- */
         body.theater-active .sidebar,
         body.theater-active .viewer-header {
             display: none !important;
@@ -223,7 +223,6 @@
 </head>
 <body>
 
-    <!-- Small floating button to bring back menu when in Max Window mode -->
     <button id="exit-theater-btn" onclick="toggleTheaterMode()">SHOW MENU</button>
 
     <!-- Sidebar / OS Menu -->
@@ -243,12 +242,12 @@
                 <span>EAGLER</span>
             </div>
             
-           <div class="glass-card" onclick="openApp('./buildnow.html')">
+            <!-- INJECTS BUILDNOW ENGINE DIRECTLY (CANNOT LOAD SNOKIDO) -->
+            <div class="glass-card" onclick="launchBuildNow()">
                 <img src="https://cdn-icons-png.flaticon.com/512/3133/3133370.png" style="filter: invert(1);" alt="BuildNow">
                 <span>BUILDNOW</span>
             </div>
 
-            <!-- TIKTOK RESTORED -->
             <div class="glass-card tiktok-card" onclick="openApp('https://YOUR_PROXY_LINK_HERE.com/tiktok')">
                 <img src="https://cdn-icons-png.flaticon.com/512/3046/3046121.png" style="filter: invert(1);" alt="TikTok">
                 <span>TIKTOK</span>
@@ -268,12 +267,10 @@
                     <span>←</span> SYSTEM RETURN
                 </button>
                 
-                <!-- Best for Minecraft: Fills window & NEVER exits when pressing Esc -->
                 <button class="action-btn" onclick="toggleTheaterMode()">
                     <span>[ ]</span> MAX WINDOW (NO ESC BUG)
                 </button>
 
-                <!-- Browser Fullscreen with Keyboard Escape Lock -->
                 <button class="action-btn" onclick="goFullscreen()">
                     <span>⛶</span> FULLSCREEN (HOLD ESC TO EXIT)
                 </button>
@@ -287,18 +284,114 @@
     <script>
         const iframe = document.getElementById('main-frame');
 
+        // Normal URL loader with automatic anti-cache timestamp
         function openApp(url) {
-            if (document.activeElement) {
-                document.activeElement.blur();
-            }
-
+            if (document.activeElement) document.activeElement.blur();
             document.getElementById('dashboard').style.display = 'none';
             document.getElementById('app-viewer').style.display = 'flex';
-            iframe.src = url;
+            
+            iframe.removeAttribute('srcdoc');
+            const separator = url.includes('?') ? '&' : '?';
+            iframe.src = url + separator + 'nocache=' + Date.now();
+        }
+
+        // Direct BuildNow GG Engine Injector (Zero external wrapper files needed)
+        function launchBuildNow() {
+            if (document.activeElement) document.activeElement.blur();
+            document.getElementById('dashboard').style.display = 'none';
+            document.getElementById('app-viewer').style.display = 'flex';
+            
+            iframe.src = "about:blank";
+            iframe.srcdoc = `<!DOCTYPE html>
+<html lang="en-us">
+<head>
+    <meta charset="utf-8">
+    <base href="https://cdn.jsdelivr.net/gh/bubblfan/cg-rip@main/buildnow-gg/">
+    <style>
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0d0d12; font-family: sans-serif; }
+        #unity-canvas { width: 100vw; height: 100vh; background: #000; display: block; }
+        #loading-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00ff88; font-size: 22px; font-weight: bold; letter-spacing: 1px; z-index: 10; text-shadow: 0 0 10px rgba(0,255,136,0.5); }
+    </style>
+</head>
+<body>
+    <div id="loading-text">LOADING BUILDNOW ENGINE... 0%</div>
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
+    <script>
+        const loadingText = document.getElementById("loading-text");
+        const canvas = document.getElementById("unity-canvas");
+        const splitFiles = {
+            "7db022abd161455e3cc5f207e75d294b.wasm": null,
+            "ab8dd356a41a2943639294657a0990f8.data": null
+        };
+        const mergedMap = {};
+
+        async function mergeParts(baseUrl) {
+            const parts = [];
+            for (let i = 1; i <= 99; i++) {
+                try {
+                    const res = await fetch(baseUrl + ".part" + i);
+                    if (!res.ok) break;
+                    parts.push(await res.arrayBuffer());
+                } catch (e) { break; }
+            }
+            return new Blob(parts, { type: "application/octet-stream" });
+        }
+
+        async function initEngine() {
+            const keys = Object.keys(splitFiles);
+            let done = 0;
+            for (const file of keys) {
+                loadingText.innerText = "DOWNLOADING ENGINE CHUNKS... (" + (done + 1) + "/" + keys.length + ")";
+                mergedMap[file] = await mergeParts("Build/" + file);
+                done++;
+            }
+
+            // Intercepts Unity's internal fetch so it reads the reassembled chunks directly
+            const origFetch = window.fetch;
+            window.fetch = async function(resource, options) {
+                if (typeof resource === "string") {
+                    const key = resource.split("/").pop();
+                    if (mergedMap[key]) {
+                        return new Response(mergedMap[key], {
+                            status: 200,
+                            headers: { "Content-Type": "application/octet-stream" }
+                        });
+                    }
+                }
+                return origFetch(resource, options);
+            };
+
+            const config = {
+                dataUrl: "Build/ab8dd356a41a2943639294657a0990f8.data",
+                frameworkUrl: "Build/91a2bfcec140bc524100478b99a4f6d7.framework.js",
+                codeUrl: "Build/7db022abd161455e3cc5f207e75d294b.wasm",
+                streamingAssetsUrl: "StreamingAssets",
+                companyName: "BattleLab",
+                productName: "BuildNow GG",
+                productVersion: "1.0.0"
+            };
+
+            const script = document.createElement("script");
+            script.src = "Build/7a2dbded24d57e056180125b1583e7c4.loader.js";
+            script.onload = () => {
+                createUnityInstance(canvas, config, (progress) => {
+                    loadingText.innerText = "STARTING BUILDNOW... " + Math.round(progress * 100) + "%";
+                }).then(() => {
+                    loadingText.style.display = "none";
+                    canvas.focus();
+                });
+            };
+            document.body.appendChild(script);
+        }
+
+        initEngine();
+    <\/script>
+</body>
+</html>`;
         }
 
         iframe.addEventListener('load', () => {
-            if (iframe.src && iframe.src !== window.location.href) {
+            if ((iframe.src && iframe.src !== window.location.href) || iframe.srcdoc) {
                 iframe.focus();
                 if (iframe.contentWindow) {
                     iframe.contentWindow.focus();
@@ -310,10 +403,10 @@
             document.body.classList.remove('theater-active');
             document.getElementById('dashboard').style.display = 'grid';
             document.getElementById('app-viewer').style.display = 'none';
+            iframe.removeAttribute('srcdoc');
             iframe.src = ""; 
         }
 
-        // Option 1: Expands game across the whole tab so Esc never kicks you out
         function toggleTheaterMode() {
             document.body.classList.toggle('theater-active');
             setTimeout(() => {
@@ -324,7 +417,6 @@
             }, 100);
         }
 
-        // Option 2: Native Fullscreen + Locks the Escape key so single-tap Esc stays in Minecraft
         async function goFullscreen() {
             try {
                 if (document.documentElement.requestFullscreen) {
@@ -333,10 +425,8 @@
                     await document.documentElement.webkitRequestFullscreen();
                 }
                 
-                // Hides the Vertex OS bars while in fullscreen
                 document.body.classList.add('theater-active');
 
-                // Locks the Escape key so tapping Esc only opens Minecraft pause menu
                 if (navigator.keyboard && navigator.keyboard.lock) {
                     await navigator.keyboard.lock(['Escape']);
                 }
@@ -352,7 +442,6 @@
             }, 100);
         }
 
-        // Restores UI if you hold Esc to exit fullscreen
         document.addEventListener('fullscreenchange', () => {
             if (!document.fullscreenElement) {
                 document.body.classList.remove('theater-active');
