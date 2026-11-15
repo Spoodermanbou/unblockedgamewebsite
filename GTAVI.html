@@ -67,10 +67,10 @@
                     <canvas id="minimap-canvas" width="160" height="160" class="w-full h-full"></canvas>
                     <div class="absolute top-1 left-1/2 -translate-x-1/2 text-[10px] font-bold text-sky-300 bg-slate-900/90 px-1.5 rounded">N</div>
                 </div>
-                <div class="neon-box px-4 py-2.5 rounded-xl hidden sm:block">
-                    <div class="flex items-center gap-2">
+                    <div>
                         <span class="text-xs uppercase tracking-widest text-sky-400 font-bold">Current District</span>
                         <span id="fps-counter" class="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-mono">60 FPS</span>
+                        <span id="chunk-counter" class="text-[10px] bg-sky-500/20 text-sky-300 px-1.5 py-0.5 rounded font-mono ml-1">STREAMING: READY</span>
                     </div>
                     <div id="district-name" class="text-lg font-extrabold text-white tracking-wide">Ocean Drive Beachfront</div>
                     <div id="time-display" class="text-xs text-amber-300 font-semibold mt-0.5">14:30 • Sunny Afternoon</div>
@@ -186,8 +186,9 @@
                 </div>
                 <div>
                     <label class="block text-slate-300 font-bold mb-1">Weather Mode</label>
-                    <div class="grid grid-cols-3 gap-2" id="weather-buttons">
-                        <button data-weather="sunny" class="bg-sky-600 py-2 rounded font-bold">Sunny Afternoon</button>
+                    <div class="grid grid-cols-4 gap-2" id="weather-buttons">
+                        <button data-weather="sunny" class="bg-sky-600 py-2 rounded font-bold">Sunny Day</button>
+                        <button data-weather="sunset" class="bg-slate-800 hover:bg-slate-700 py-2 rounded font-bold">Vice Sunset</button>
                         <button data-weather="night" class="bg-slate-800 hover:bg-slate-700 py-2 rounded font-bold">Neon Night</button>
                         <button data-weather="rain" class="bg-slate-800 hover:bg-slate-700 py-2 rounded font-bold">Tropical Rain</button>
                     </div>
@@ -309,6 +310,17 @@
     let projectiles = [];
     let impactParticles = [];
     let rainSystem = null;
+    let oceanMesh = null;
+    let envMapTexture = null;
+
+    // World Streaming & Predictive Chunk Manager Globals
+    const CHUNK_SIZE = 120;
+    const worldChunks = new Map();
+    const preloadQueue = [];
+    let lastPlayerPos = new THREE.Vector3(60, 0, 15);
+    let playerVelocityVec = new THREE.Vector3();
+    let lastCamYaw = Math.PI;
+    let camYawVelocity = 0;
 
     let playerCash = 12500;
     let wantedStars = 0;
@@ -319,9 +331,9 @@
     // Day/Night & Weather State
     let gameTimeHours = 14.5; // Starts at 2:30 PM Sunny Afternoon
     let autoTimeCycle = true;
-    let currentWeather = 'sunny'; // 'sunny', 'night', 'rain'
+    let currentWeather = 'sunny'; // 'sunny', 'sunset', 'night', 'rain'
     let graphicsPreset = 'high';  // 'low', 'med', 'high', 'ultra'
-    let drawDistance = 550;
+    let drawDistance = 950;
 
     // Camera Orbit State (Full 360 horizontal, clamped vertical)
     let camYaw = Math.PI; // Faces down Ocean Drive (+Z)
@@ -399,45 +411,83 @@
     // ============================================================================
     // 2. PROCEDURAL TEXTURES & PBR MATERIALS
     // ============================================================================
-    function createAsphaltTexture() {
+    function createEquirectangularMiamiEnvMap() {
         const c = document.createElement('canvas');
-        c.width = 256; c.height = 256;
+        c.width = 512; c.height = 256;
         const ctx = c.getContext('2d');
-        ctx.fillStyle = '#1e293b';
-        ctx.fillRect(0, 0, 256, 256);
-        for (let i = 0; i < 1800; i++) {
-            const v = 25 + Math.floor(Math.random() * 25);
-            ctx.fillStyle = `rgb(${v},${v + 4},${v + 10})`;
-            ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
-        }
+        const grad = ctx.createLinearGradient(0, 0, 0, 256);
+        grad.addColorStop(0.0, '#0284c7');
+        grad.addColorStop(0.42, '#7dd3fc');
+        grad.addColorStop(0.49, '#fde68a');
+        grad.addColorStop(0.51, '#0369a1');
+        grad.addColorStop(1.0, '#0f172a');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 512, 256);
+
+        // Add subtle neon & skyline horizon reflections
+        ctx.fillStyle = 'rgba(255, 42, 133, 0.28)';
+        ctx.fillRect(0, 118, 512, 10);
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.28)';
+        ctx.fillRect(0, 128, 512, 8);
+
         const tex = new THREE.CanvasTexture(c);
-        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-        tex.repeat.set(30, 30);
+        tex.mapping = THREE.EquirectangularReflectionMapping;
         return tex;
     }
 
-    function createBuildingWindowTexture(baseHex, litRatio = 0.65) {
+    function createAsphaltTexture() {
+        const c = document.createElement('canvas');
+        c.width = 512; c.height = 512;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(0, 0, 512, 512);
+        for (let i = 0; i < 4500; i++) {
+            const v = 24 + Math.floor(Math.random() * 26);
+            ctx.fillStyle = `rgb(${v},${v + 4},${v + 9})`;
+            ctx.fillRect(Math.random() * 512, Math.random() * 512, 2, 2);
+        }
+        const tex = new THREE.CanvasTexture(c);
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(60, 60);
+        return tex;
+    }
+
+    const windowTextureCache = {};
+    function createBuildingWindowTexture(baseHex, litRatio = 0.65, style = 'glass') {
+        const key = `${baseHex}_${litRatio}_${style}`;
+        if (windowTextureCache[key]) return windowTextureCache[key];
+
         const c = document.createElement('canvas');
         c.width = 256; c.height = 512;
         const ctx = c.getContext('2d');
-        ctx.fillStyle = baseHex;
+        ctx.fillStyle = '#' + baseHex.toString(16).padStart(6, '0');
         ctx.fillRect(0, 0, 256, 512);
-        const cols = 4, rows = 10;
-        const padX = 12, padY = 12;
+
+        const cols = style === 'skyscraper' ? 6 : 4;
+        const rows = style === 'skyscraper' ? 16 : 10;
+        const padX = style === 'skyscraper' ? 6 : 12;
+        const padY = style === 'skyscraper' ? 8 : 12;
         const w = (256 - padX * (cols + 1)) / cols;
         const h = (512 - padY * (rows + 1)) / rows;
+
         for (let r = 0; r < rows; r++) {
             for (let cl = 0; cl < cols; cl++) {
                 const isLit = Math.random() < litRatio;
-                ctx.fillStyle = isLit ? '#bae6fd' : '#0f172a';
+                if (isLit) {
+                    const warmOrCool = Math.random() < 0.35 ? '#fef08a' : (Math.random() < 0.7 ? '#bae6fd' : '#f5d0fe');
+                    ctx.fillStyle = warmOrCool;
+                } else {
+                    ctx.fillStyle = '#0f172a';
+                }
                 ctx.fillRect(padX + cl * (w + padX), padY + r * (h + padY), w, h);
-                ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-                ctx.lineWidth = 2;
+                ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+                ctx.lineWidth = 1.5;
                 ctx.strokeRect(padX + cl * (w + padX), padY + r * (h + padY), w, h);
             }
         }
         const tex = new THREE.CanvasTexture(c);
         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        windowTextureCache[key] = tex;
         return tex;
     }
 
@@ -897,12 +947,13 @@
     }
 
     // ============================================================================
-    // 6. REALISTIC MIAMI CITY LAYOUT & SOUTH BEACH NEON NIGHTLIFE
+    // 6. MASSIVE MIAMI CITY RESTORATION & SMART 360° WORLD STREAMING SYSTEM
     // ============================================================================
-    const ROAD_X = [-140, -60, 0, 60];
-    const ROAD_Z = [-160, -80, 0, 80, 160];
+    // Expanded 6x9 Avenue & Street Grid covering X: [-300 to 260], Z: [-420 to 420]
+    const ROAD_X = [-220, -140, -60, 0, 60];
+    const ROAD_Z = [-320, -240, -160, -80, 0, 80, 160, 240, 320];
 
-    function isNearRoad(x, z, margin = 18) {
+    function isNearRoad(x, z, margin = 16) {
         for (let rx of ROAD_X) {
             if (Math.abs(x - rx) < margin) return true;
         }
@@ -912,191 +963,466 @@
         return false;
     }
 
-    function addBuildingBlock(x, z, w, h, d, colorHex, neonHex = null, signLabel = null) {
-        if (isNearRoad(x, z, Math.max(w, d) / 2 + 11)) return; // Prevent crowding roads
+    // Register a chunk coordinate in our Seamless World Streaming Map
+    function getChunkKey(x, z) {
+        const cx = Math.floor(x / CHUNK_SIZE);
+        const cz = Math.floor(z / CHUNK_SIZE);
+        return `${cx},${cz}`;
+    }
 
-        const winTex = createBuildingWindowTexture(colorHex, 0.7);
+    function ensureChunkExists(x, z) {
+        const cx = Math.floor(x / CHUNK_SIZE);
+        const cz = Math.floor(z / CHUNK_SIZE);
+        const key = `${cx},${cz}`;
+        if (!worldChunks.has(key)) {
+            const highDetailGroup = new THREE.Group();
+            const lowDetailGroup = new THREE.Group();
+            const chunkRoot = new THREE.Group();
+            chunkRoot.add(highDetailGroup);
+            chunkRoot.add(lowDetailGroup);
+            scene.add(chunkRoot);
+
+            const chunkObj = {
+                key,
+                cx,
+                cz,
+                center: new THREE.Vector3((cx + 0.5) * CHUNK_SIZE, 0, (cz + 0.5) * CHUNK_SIZE),
+                root: chunkRoot,
+                highGroup: highDetailGroup,
+                lowGroup: lowDetailGroup,
+                state: 'PRELOADED', // 'HIGH_LOD', 'LOW_LOD', 'UNLOADED'
+                lastActiveTime: performance.now()
+            };
+            worldChunks.set(key, chunkObj);
+            preloadQueue.push(chunkObj);
+        }
+        return worldChunks.get(key);
+    }
+
+    // Shared Geometry Cache to avoid memory bloat & keep 60 FPS across 140+ buildings
+    const sharedUnitBox = new THREE.BoxGeometry(1, 1, 1);
+    const sharedCylinder = new THREE.CylinderGeometry(1, 1, 1, 16);
+
+    function addBuildingBlock(x, z, w, h, d, colorHex, neonHex = null, archStyle = 'artdeco') {
+        if (isNearRoad(x, z, Math.max(w, d) / 2 + 10.5)) return;
+
+        const chunk = ensureChunkExists(x, z);
+        const winTex = createBuildingWindowTexture(colorHex, archStyle === 'skyscraper' ? 0.78 : 0.65, archStyle);
         const bMat = new THREE.MeshStandardMaterial({
             map: winTex,
-            roughness: 0.35,
-            metalness: 0.25
+            roughness: archStyle === 'skyscraper' ? 0.15 : 0.38,
+            metalness: archStyle === 'skyscraper' ? 0.65 : 0.22
         });
         windowMaterials.push(bMat);
 
-        const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bMat);
+        // Base Tower (Always in Chunk Root so skyline never pops in when turning 360 degrees!)
+        const mesh = new THREE.Mesh(sharedUnitBox, bMat);
+        mesh.scale.set(w, h, d);
         mesh.position.set(x, h / 2, z);
-        mesh.castShadow = true;
+        mesh.castShadow = h > 22;
         mesh.receiveShadow = true;
-        scene.add(mesh);
+        chunk.lowGroup.add(mesh);
 
         colliders.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2 });
 
-        // Art Deco Roof Trim & South Beach Neon Strip
-        if (neonHex) {
-            const roofTrim = createNeonStrip(w + 0.4, 0.45, d + 0.4, neonHex);
-            roofTrim.position.set(x, h - 0.5, z);
-            scene.add(roofTrim);
+        // High-Detail Architectural Ornaments (Balconies, Penthouses, Rooftop Helipads, Neon Strips)
+        if (archStyle === 'skyscraper') {
+            // Setback Penthouse Crown & Spire
+            const crown = new THREE.Mesh(sharedUnitBox, bMat);
+            crown.scale.set(w * 0.72, 6, d * 0.72);
+            crown.position.set(x, h + 3, z);
+            chunk.highGroup.add(crown);
 
-            const vStripL = createNeonStrip(0.35, h * 0.85, 0.35, neonHex);
+            if (neonHex) {
+                const crownNeon = createNeonStrip(w * 0.76, 0.55, d * 0.76, neonHex);
+                crownNeon.position.set(x, h + 6.1, z);
+                chunk.lowGroup.add(crownNeon);
+            }
+        } else if (archStyle === 'artdeco') {
+            // South Beach Stepped Art Deco Eyebrow Ledges & Vertical Fin
+            const finMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+            const centerFin = new THREE.Mesh(sharedUnitBox, finMat);
+            centerFin.scale.set(1.2, h + 3.2, 1.4);
+            centerFin.position.set(x + w / 2 - 0.5, (h + 3.2) / 2, z);
+            chunk.highGroup.add(centerFin);
+
+            // Wraparound Ocean-Facing Balconies
+            for (let by = 4.5; by < h - 2; by += 4.2) {
+                const balcony = new THREE.Mesh(sharedUnitBox, finMat);
+                balcony.scale.set(w + 0.8, 0.35, d + 0.8);
+                balcony.position.set(x, by, z);
+                chunk.highGroup.add(balcony);
+            }
+        } else if (archStyle === 'industrial') {
+            // Sawtooth Warehouse Roof Detail & Loading Bay Canopy
+            const canopyMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.6, roughness: 0.4 });
+            const canopy = new THREE.Mesh(sharedUnitBox, canopyMat);
+            canopy.scale.set(w + 2.4, 0.4, 4.0);
+            canopy.position.set(x, 4.2, z + d / 2 + 1.5);
+            chunk.highGroup.add(canopy);
+        }
+
+        // Emissive Neon Accents placed in lowGroup so nighttime skyline glows seamlessly at any angle
+        if (neonHex) {
+            const roofTrim = createNeonStrip(w + 0.45, 0.5, d + 0.45, neonHex);
+            roofTrim.position.set(x, h - 0.4, z);
+            chunk.lowGroup.add(roofTrim);
+
+            const vStripL = createNeonStrip(0.38, h * 0.88, 0.38, neonHex);
             vStripL.position.set(x - w / 2, h * 0.45, z + d / 2);
-            const vStripR = createNeonStrip(0.35, h * 0.85, 0.35, neonHex);
+            const vStripR = createNeonStrip(0.38, h * 0.88, 0.38, neonHex);
             vStripR.position.set(x + w / 2, h * 0.45, z + d / 2);
-            scene.add(vStripL, vStripR);
+            chunk.highGroup.add(vStripL, vStripR);
         }
     }
 
-    function createPalmTree(x, z) {
-        const group = new THREE.Group();
+    // GPU-Instanced Palm Trees & Streetlights for zero draw-call overhead across the entire city
+    const palmLocations = [];
+    function queuePalmTree(x, z) {
+        palmLocations.push(new THREE.Vector3(x, 0, z));
+    }
+
+    function buildInstancedPalmForest() {
+        const count = palmLocations.length;
+        if (count === 0) return;
+
+        const trunkGeo = new THREE.CylinderGeometry(0.22, 0.40, 7.6, 7);
+        trunkGeo.translate(0, 3.8, 0);
         const trunkMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.9 });
-        const leafMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.6 });
+        const trunkInst = new THREE.InstancedMesh(trunkGeo, trunkMat, count);
+        trunkInst.castShadow = true;
+        trunkInst.frustumCulled = false; // Always ready when spinning camera 360 degrees
 
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.38, 7.5, 7), trunkMat);
-        trunk.position.y = 3.75;
-        trunk.castShadow = true;
-        group.add(trunk);
+        const crownGeo = new THREE.ConeGeometry(2.8, 2.2, 7);
+        crownGeo.translate(0, 7.6, 0);
+        const crownMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.65 });
+        const crownInst = new THREE.InstancedMesh(crownGeo, crownMat, count);
+        crownInst.castShadow = true;
+        crownInst.frustumCulled = false;
 
-        for (let i = 0; i < 6; i++) {
-            const frond = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.12, 3.2), leafMat);
-            const angle = (i / 6) * Math.PI * 2;
-            frond.position.set(Math.sin(angle) * 1.3, 7.4, Math.cos(angle) * 1.3);
-            frond.rotation.y = angle;
-            frond.rotation.x = 0.35;
-            group.add(frond);
-        }
-        group.position.set(x, 0, z);
-        scene.add(group);
+        const dummy = new THREE.Object3D();
+        palmLocations.forEach((pos, idx) => {
+            dummy.position.copy(pos);
+            const scale = 0.88 + (idx % 5) * 0.08;
+            dummy.scale.set(scale, scale, scale);
+            dummy.rotation.y = (idx * 1.3) % (Math.PI * 2);
+            dummy.updateMatrix();
+            trunkInst.setMatrixAt(idx, dummy.matrix);
+            crownInst.setMatrixAt(idx, dummy.matrix);
+        });
+        scene.add(trunkInst, crownInst);
     }
 
     function buildWorldEnvironment() {
         const asphaltTex = createAsphaltTexture();
         const groundMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.85 });
-        const ground = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), groundMat);
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(1800, 1800), groundMat);
         ground.rotation.x = -Math.PI / 2;
         ground.receiveShadow = true;
         scene.add(ground);
 
-        // Connected Road Network with Sidewalks & Lane Markings
-        const roadMat = new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: 0.65, metalness: 0.1 });
+        // Connected Massive Road Network with Crosswalks, Sidewalks & Lane Markings
+        const roadMat = new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: 0.55, metalness: 0.15 });
         const sidewalkMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.75 });
         const lineMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+        const whiteLineMat = new THREE.MeshBasicMaterial({ color: 0xf8fafc });
 
         ROAD_X.forEach(rx => {
-            const road = new THREE.Mesh(new THREE.PlaneGeometry(16, 480), roadMat);
+            const road = new THREE.Mesh(new THREE.PlaneGeometry(16, 760), roadMat);
             road.rotation.x = -Math.PI / 2;
             road.position.set(rx, 0.03, 0);
             road.receiveShadow = true;
+            road.frustumCulled = false;
             scene.add(road);
 
-            const centerLine = new THREE.Mesh(new THREE.PlaneGeometry(0.35, 480), lineMat);
+            const centerLine = new THREE.Mesh(new THREE.PlaneGeometry(0.35, 760), lineMat);
             centerLine.rotation.x = -Math.PI / 2;
             centerLine.position.set(rx, 0.05, 0);
+            centerLine.frustumCulled = false;
             scene.add(centerLine);
 
             for (let side of [-10, 10]) {
-                const sw = new THREE.Mesh(new THREE.BoxGeometry(4, 0.16, 480), sidewalkMat);
+                const sw = new THREE.Mesh(new THREE.BoxGeometry(4, 0.16, 760), sidewalkMat);
                 sw.position.set(rx + side, 0.08, 0);
                 sw.receiveShadow = true;
+                sw.frustumCulled = false;
                 scene.add(sw);
             }
         });
 
         ROAD_Z.forEach(rz => {
-            const road = new THREE.Mesh(new THREE.PlaneGeometry(360, 16), roadMat);
+            const road = new THREE.Mesh(new THREE.PlaneGeometry(340, 16), roadMat);
             road.rotation.x = -Math.PI / 2;
-            road.position.set(-20, 0.04, rz);
+            road.position.set(-80, 0.04, rz);
             road.receiveShadow = true;
+            road.frustumCulled = false;
             scene.add(road);
 
-            const centerLine = new THREE.Mesh(new THREE.PlaneGeometry(360, 0.35), lineMat);
+            const centerLine = new THREE.Mesh(new THREE.PlaneGeometry(340, 0.35), lineMat);
             centerLine.rotation.x = -Math.PI / 2;
-            centerLine.position.set(-20, 0.06, rz);
+            centerLine.position.set(-80, 0.06, rz);
+            centerLine.frustumCulled = false;
             scene.add(centerLine);
+        });
+
+        // Intersection Crosswalks
+        ROAD_X.forEach(rx => {
+            ROAD_Z.forEach(rz => {
+                const cw = new THREE.Mesh(new THREE.PlaneGeometry(14, 1.4), whiteLineMat);
+                cw.rotation.x = -Math.PI / 2;
+                cw.position.set(rx, 0.065, rz + 9.2);
+                scene.add(cw);
+            });
         });
 
         // Flush Low-Profile Miami Coastal Railway along X = -115
         const railMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8, roughness: 0.3 });
         for (let rOffset of [-0.9, 0.9]) {
-            const rail = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.04, 460), railMat);
+            const rail = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.04, 760), railMat);
             rail.position.set(-115 + rOffset, 0.02, 0);
             scene.add(rail);
         }
 
-        // Organized City Blocks:
-        // 1. South Beach Pastel Art Deco Hotels (X = 28 to 38, facing Ocean Drive X=60)
-        const artDecoColors = [0xfef08a, 0xfbcfe8, 0xbae6fd, 0xa7f3d0, 0xfde68a, 0xe9d5ff];
-        const neonPalette = [0xff2a85, 0x00f5d4, 0x38bdf8, 0xf43f5e, 0xa855f7, 0x2dd4bf];
-        const hotelZPositions = [-130, -105, -50, -25, 25, 50, 115, 138];
-        hotelZPositions.forEach((hz, i) => {
-            addBuildingBlock(32, hz, 18, 18 + (i % 3) * 5, 18, artDecoColors[i % artDecoColors.length], neonPalette[i % neonPalette.length]);
-            createPalmTree(47, hz - 6);
-            createPalmTree(47, hz + 6);
+        // ========================================================================
+        // RESTORED & EXPANDED DISTRICTS ACROSS THE MASSIVE MIAMI MAP
+        // ========================================================================
+        const artDecoColors = [0xfef08a, 0xfbcfe8, 0xbae6fd, 0xa7f3d0, 0xfde68a, 0xe9d5ff, 0xfecdd3];
+        const neonPalette = [0xff2a85, 0x00f5d4, 0x38bdf8, 0xf43f5e, 0xa855f7, 0x2dd4bf, 0xfbbf24];
+
+        // 1. SOUTH BEACH, MID-BEACH & NORTH BEACH ART DECO STRIP (X = 30, Z = -300 to +300)
+        const beachZBlocks = [
+            -295, -265, -215, -185, -135, -105, -55, -25,
+            25, 52, 115, 138, 185, 215, 265, 295
+        ];
+        beachZBlocks.forEach((hz, i) => {
+            const h = 18 + (i % 4) * 5;
+            addBuildingBlock(30, hz, 18, h, 18, artDecoColors[i % artDecoColors.length], neonPalette[i % neonPalette.length], 'artdeco');
+            queuePalmTree(47, hz - 7);
+            queuePalmTree(47, hz + 7);
+            queuePalmTree(74, hz);
         });
 
-        // 2. Enterable Nightclub "CLUB PINK FLAMINGO" at (35, 0, 80 -> shifted cleanly to 32, 0, 52 block or dedicated lot at 32, 0, 115)
-        buildNightclubExterior(32, 115);
+        // 2. ENTERABLE NIGHTCLUB "CLUB PINK FLAMINGO" & ENTERTAINMENT PROMENADE
+        buildNightclubExterior(30, 115);
 
-        // 3. Downtown Brickell Skyscraper District (X = -30 and X = -90 blocks)
-        const towerCoords = [
-            [-30, -120, 22, 68, 22, 0x0ea5e9, 0x38bdf8],
-            [-30, -40,  22, 82, 22, 0x0284c7, 0x00f5d4],
-            [-30,  40,  22, 60, 22, 0x1e293b, 0xff2a85],
-            [-90, -120, 24, 54, 24, 0x334155, 0xa855f7],
-            [-90, -40,  24, 75, 24, 0x0f172a, 0x38bdf8],
-            [-90,  40,  22, 48, 22, 0x1e3a8a, 0xf43f5e]
-        ];
-        towerCoords.forEach(t => addBuildingBlock(t[0], t[1], t[2], t[3], t[4], t[5], t[6]));
+        // 3. MASSIVE DOWNTOWN BRICKELL & BISCAYNE SKYLINE (X = -30 and X = -90, Z = -300 to +300)
+        const downtownZBlocks = [-290, -265, -210, -185, -130, -105, -50, -25, 25, 52, 110, 135, 190, 215, 270, 295];
+        const towerColors = [0x0ea5e9, 0x0284c7, 0x1e293b, 0x334155, 0x0f172a, 0x1e3a8a, 0x0369a1];
 
-        // 4. West Residential & Commercial District (X = -175)
-        for (let rz of [-125, -45, 35, 115]) {
-            addBuildingBlock(-175, rz, 20, 12, 22, 0xfed7aa, 0xfbbf24);
-            createPalmTree(-158, rz);
+        downtownZBlocks.forEach((bz, i) => {
+            // East Brickell Row (X = -30)
+            if (Math.abs(bz - 38) > 30) { // Leave space at Z=25..55 for Tropical Bayfront Central Park!
+                const heightA = 46 + ((i * 17) % 48);
+                addBuildingBlock(-30, bz, 21, heightA, 20, towerColors[i % towerColors.length], neonPalette[i % neonPalette.length], 'skyscraper');
+            }
+            // West Brickell Financial Core (X = -90)
+            const heightB = 52 + ((i * 23) % 54);
+            addBuildingBlock(-90, bz, 22, heightB, 21, towerColors[(i + 2) % towerColors.length], neonPalette[(i + 3) % neonPalette.length], 'skyscraper');
+            queuePalmTree(-46, bz);
+            queuePalmTree(-74, bz);
+        });
+
+        // 4. RESTORED TROPICAL BAYFRONT FOUNTAIN PARK (X = -30, Z = 22 to 56)
+        const parkGrass = new THREE.Mesh(
+            new THREE.BoxGeometry(26, 0.25, 42),
+            new THREE.MeshStandardMaterial({ color: 0x16a34a, roughness: 0.85 })
+        );
+        parkGrass.position.set(-30, 0.12, 38);
+        parkGrass.receiveShadow = true;
+        scene.add(parkGrass);
+
+        const fountainBase = new THREE.Mesh(
+            new THREE.CylinderGeometry(5.5, 6.0, 1.1, 20),
+            new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 })
+        );
+        fountainBase.position.set(-30, 0.6, 38);
+        const fountainWater = new THREE.Mesh(
+            new THREE.CylinderGeometry(4.8, 4.8, 0.9, 20),
+            new THREE.MeshPhysicalMaterial({ color: 0x38bdf8, roughness: 0.1, clearcoat: 1.0 })
+        );
+        fountainWater.position.set(-30, 0.8, 38);
+        const fountainNeon = createNeonStrip(3.2, 2.8, 3.2, 0x00f5d4);
+        fountainNeon.position.set(-30, 1.8, 38);
+        scene.add(fountainBase, fountainWater, fountainNeon);
+        for (let pz of [22, 30, 46, 54]) {
+            queuePalmTree(-20, pz);
+            queuePalmTree(-40, pz);
         }
 
-        // 5. Miami Beach Sand, Ocean Water & Venetian Causeway to Star Island
+        // 5. LITTLE HAVANA RESIDENTIAL & WYNWOOD COMMERCIAL DISTRICT (X = -180, Z = -300 to +300)
+        const westColors = [0xfed7aa, 0xfde68a, 0xfecaca, 0xd9f99d, 0xbae6fd, 0xf5d0fe];
+        downtownZBlocks.forEach((wz, i) => {
+            const isWynwood = wz > 0;
+            const bHeight = isWynwood ? (16 + (i % 3) * 6) : (10 + (i % 2) * 5);
+            addBuildingBlock(-180, wz, 22, bHeight, 20, westColors[i % westColors.length], neonPalette[(i + 1) % neonPalette.length], 'artdeco');
+            queuePalmTree(-158, wz);
+        });
+
+        // 6. ALLAPATTAH INDUSTRIAL WAREHOUSES & LOGISTICS PORT (X = -260, Z = -290 to +290)
+        const indZBlocks = [-280, -200, -120, -40, 40, 120, 200, 280];
+        indZBlocks.forEach((iz, i) => {
+            addBuildingBlock(-260, iz, 26, 14 + (i % 2) * 5, 32, 0x64748b, 0xfbbf24, 'industrial');
+        });
+
+        // 7. SOUTH BEACH SAND, LIFEGUARD TOWERS, OCEAN & STAR ISLAND ESTATES
         const sand = new THREE.Mesh(
-            new THREE.PlaneGeometry(95, 520),
+            new THREE.PlaneGeometry(105, 860),
             new THREE.MeshStandardMaterial({ color: 0xfde68a, roughness: 0.9 })
         );
         sand.rotation.x = -Math.PI / 2;
-        sand.position.set(118, 0.02, 0);
+        sand.position.set(120, 0.02, 0);
         sand.receiveShadow = true;
+        sand.frustumCulled = false;
         scene.add(sand);
 
-        const ocean = new THREE.Mesh(
-            new THREE.PlaneGeometry(450, 900),
-            new THREE.MeshPhysicalMaterial({ color: 0x0284c7, roughness: 0.12, metalness: 0.1, clearcoat: 0.9 })
-        );
-        ocean.rotation.x = -Math.PI / 2;
-        ocean.position.set(340, 0.01, 0);
-        scene.add(ocean);
+        // Iconic Colorful South Beach Lifeguard Towers along the shoreline
+        for (let lz = -240; lz <= 240; lz += 80) {
+            if (Math.abs(lz) < 25) continue; // Skip causeway bridge approach
+            const lgColor = neonPalette[Math.abs(lz / 80) % neonPalette.length];
+            const lgHut = new THREE.Mesh(
+                new THREE.BoxGeometry(3.6, 3.2, 3.6),
+                new THREE.MeshStandardMaterial({ color: lgColor, roughness: 0.5 })
+            );
+            lgHut.position.set(105, 2.8, lz);
+            const lgRoof = new THREE.Mesh(
+                new THREE.ConeGeometry(3.2, 1.5, 4),
+                new THREE.MeshStandardMaterial({ color: 0xffffff })
+            );
+            lgRoof.position.set(105, 5.1, lz);
+            lgRoof.rotation.y = Math.PI / 4;
+            scene.add(lgHut, lgRoof);
+            queuePalmTree(92, lz - 10);
+            queuePalmTree(92, lz + 10);
+        }
 
-        // Causeway Bridge to Star Island Mansion (X = 70 to 240 at Z = 0)
-        const bridge = new THREE.Mesh(new THREE.BoxGeometry(175, 0.5, 16), roadMat);
-        bridge.position.set(155, 0.25, 0);
+        oceanMesh = new THREE.Mesh(
+            new THREE.PlaneGeometry(750, 1800),
+            new THREE.MeshPhysicalMaterial({
+                color: 0x0284c7,
+                roughness: 0.08,
+                metalness: 0.15,
+                clearcoat: 1.0,
+                clearcoatRoughness: 0.05
+            })
+        );
+        oceanMesh.rotation.x = -Math.PI / 2;
+        oceanMesh.position.set(490, 0.01, 0);
+        oceanMesh.frustumCulled = false;
+        scene.add(oceanMesh);
+
+        // Venetian Causeway Bridge & Expanded Star Island Luxury Compounds
+        const bridge = new THREE.Mesh(new THREE.BoxGeometry(185, 0.55, 16), roadMat);
+        bridge.position.set(158, 0.25, 0);
         scene.add(bridge);
 
         const starIsland = new THREE.Mesh(
-            new THREE.CylinderGeometry(52, 56, 1.2, 24),
+            new THREE.CylinderGeometry(72, 78, 1.3, 32),
             new THREE.MeshStandardMaterial({ color: 0x86efac, roughness: 0.8 })
         );
-        starIsland.position.set(240, 0.4, 0);
+        starIsland.position.set(255, 0.4, 0);
         scene.add(starIsland);
 
-        // Luxury Star Island Mansion
-        addBuildingBlock(245, 0, 24, 14, 28, 0xfffbeb, 0xfbbf24);
+        // 3 Star Island Waterfront Mansions
+        addBuildingBlock(255, 0,   26, 15, 28, 0xfffbeb, 0xfbbf24, 'artdeco');
+        addBuildingBlock(245, -38, 20, 12, 20, 0xfef08a, 0x38bdf8, 'artdeco');
+        addBuildingBlock(245,  38, 20, 12, 20, 0xfbcfe8, 0xff2a85, 'artdeco');
+        for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 6) {
+            queuePalmTree(255 + Math.cos(angle) * 56, Math.sin(angle) * 56);
+        }
 
-        // Streetlights along Ocean Drive & Brickell
-        for (let z = -150; z <= 150; z += 50) {
-            const pole = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.12, 0.16, 7.5, 6),
-                new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8 })
-            );
-            pole.position.set(48, 3.75, z);
-            const bulbMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
-            const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.32, 8, 8), bulbMat);
-            bulb.position.set(49.2, 7.4, z);
-            scene.add(pole, bulb);
-            streetLightFixtures.push(bulbMat);
+        // Build all GPU-Instanced Palm Trees in a single batch
+        buildInstancedPalmForest();
+
+        // Streetlights along Ocean Drive, Brickell & Cross Avenues
+        for (let z = -300; z <= 300; z += 50) {
+            for (let lx of [48, -12, -72, -152]) {
+                const pole = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.12, 0.16, 7.5, 6),
+                    new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8 })
+                );
+                pole.position.set(lx, 3.75, z);
+                const bulbMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
+                const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.32, 8, 8), bulbMat);
+                bulb.position.set(lx + 1.1, 7.4, z);
+                scene.add(pole, bulb);
+                streetLightFixtures.push(bulbMat);
+            }
+        }
+    }
+
+    // ============================================================================
+    // PREDICTIVE 360° WORLD STREAMING & HYSTERESIS LOD MANAGER
+    // ============================================================================
+    function updateWorldStreaming(dt) {
+        const activePos = player.vehicle ? player.vehicle.mesh.position : player.mesh.position;
+
+        // Calculate player movement velocity & camera angular velocity to predict future view
+        playerVelocityVec.subVectors(activePos, lastPlayerPos).divideScalar(Math.max(0.001, dt));
+        lastPlayerPos.copy(activePos);
+
+        let yawDelta = camYaw - lastCamYaw;
+        while (yawDelta > Math.PI) yawDelta -= Math.PI * 2;
+        while (yawDelta < -Math.PI) yawDelta += Math.PI * 2;
+        camYawVelocity = yawDelta / Math.max(0.001, dt);
+        lastCamYaw = camYaw;
+
+        // Predict look-ahead point (1.2 seconds ahead when driving fast)
+        const predictedPos = activePos.clone().addScaledVector(playerVelocityVec, 1.2);
+
+        // Asynchronously warm up any queued chunk meshes without blocking main loop
+        if (preloadQueue.length > 0) {
+            const nextChunk = preloadQueue.shift();
+            nextChunk.root.visible = true;
+            nextChunk.highGroup.visible = true;
+            nextChunk.lowGroup.visible = true;
+        }
+
+        // Hysteresis thresholds prevent flickering & guarantee 360-degree preloaded surroundings
+        const preloadRadius360 = Math.min(480, drawDistance * 0.72); // Always loaded all around player (behind & sides)
+        const highDetailEnterDist = preloadRadius360;
+        const highDetailExitDist = preloadRadius360 + 65; // 65m hysteresis buffer
+        const unloadEnterDist = drawDistance + 120;
+        const unloadExitDist = drawDistance + 40;
+
+        let activeChunkCount = 0;
+        worldChunks.forEach(chunk => {
+            const distNow = activePos.distanceTo(chunk.center);
+            const distPredicted = predictedPos.distanceTo(chunk.center);
+            const effectiveDist = Math.min(distNow, distPredicted);
+
+            if (chunk.state === 'UNLOADED') {
+                if (effectiveDist < unloadExitDist) {
+                    chunk.root.visible = true;
+                    chunk.lowGroup.visible = true;
+                    chunk.state = effectiveDist < highDetailEnterDist ? 'HIGH_LOD' : 'LOW_LOD';
+                    chunk.highGroup.visible = (chunk.state === 'HIGH_LOD');
+                }
+            } else if (chunk.state === 'LOW_LOD') {
+                if (effectiveDist < highDetailEnterDist) {
+                    chunk.state = 'HIGH_LOD';
+                    chunk.highGroup.visible = true;
+                } else if (effectiveDist > unloadEnterDist) {
+                    chunk.state = 'UNLOADED';
+                    chunk.root.visible = false;
+                }
+            } else { // 'HIGH_LOD' or 'PRELOADED'
+                chunk.root.visible = true;
+                chunk.lowGroup.visible = true;
+                if (effectiveDist > highDetailExitDist) {
+                    chunk.state = 'LOW_LOD';
+                    chunk.highGroup.visible = false;
+                } else {
+                    chunk.state = 'HIGH_LOD';
+                    chunk.highGroup.visible = true;
+                }
+            }
+
+            if (chunk.root.visible) activeChunkCount++;
+        });
+
+        const chunkBadge = document.getElementById('chunk-counter');
+        if (chunkBadge) {
+            chunkBadge.textContent = `360° PRELOAD: ${activeChunkCount}/${worldChunks.size} SECTORS`;
         }
     }
 
@@ -1471,17 +1797,17 @@
 
         // Moving AI Traffic along Major Avenues
         const types = ['supercar', 'sport', 'sedan', 'luxury', 'suv', 'truck'];
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 18; i++) {
             const rx = ROAD_X[i % ROAD_X.length];
-            const z = -140 + i * 28;
+            const z = -280 + i * 32;
             spawnVehicle(types[i % types.length], rx + 3.8, z, 0, true);
         }
 
         // Sidewalk Pedestrians (Strictly spawned on sidewalks, never in road centers)
-        for (let i = 0; i < 26; i++) {
+        for (let i = 0; i < 36; i++) {
             const rx = ROAD_X[i % ROAD_X.length];
             const sideOffset = (i % 2 === 0) ? 10.2 : -10.2;
-            const z = -150 + i * 12;
+            const z = -270 + i * 16;
             const npcMesh = createHumanCharacter({
                 outfitIdx: i % OUTFIT_PRESETS.length,
                 hairIdx: i % 10
@@ -1580,33 +1906,46 @@
     // ============================================================================
     function applyWeatherAndTime(dt) {
         if (autoTimeCycle && currentWeather === 'sunny') {
-            gameTimeHours = (gameTimeHours + dt * 0.08) % 24;
+            gameTimeHours = (gameTimeHours + dt * 0.05) % 24;
         }
-        const isNight = (currentWeather === 'night') || (gameTimeHours >= 19.5 || gameTimeHours < 6.0);
+        const isNight = (currentWeather === 'night') || (gameTimeHours >= 20.0 || gameTimeHours < 6.0);
+        const isSunset = (currentWeather === 'sunset') || (!isNight && gameTimeHours >= 17.5 && gameTimeHours < 20.0);
         const isRain = (currentWeather === 'rain');
 
         // Smooth Sky, Fog & Neon Lighting Transition
         if (isNight) {
-            scene.background.setHex(0x060b19);
-            scene.fog.color.setHex(0x060b19);
+            scene.background.setHex(0x050814);
+            scene.fog.color.setHex(0x050814);
             dirLight.intensity = 0.35;
+            dirLight.color.setHex(0x93c5fd);
             hemiLight.intensity = 0.45;
-            neonMaterials.forEach(m => { m.emissiveIntensity = 2.4; });
+            neonMaterials.forEach(m => { m.emissiveIntensity = 2.6; });
             streetLightFixtures.forEach(m => { m.color.setHex(0xfef08a); });
             document.getElementById('time-display').textContent = '22:45 • South Beach Neon Night';
+        } else if (isSunset) {
+            scene.background.setHex(0xf97316);
+            scene.fog.color.setHex(0xfb7185);
+            dirLight.intensity = 1.25;
+            dirLight.color.setHex(0xfdba74);
+            hemiLight.intensity = 0.75;
+            neonMaterials.forEach(m => { m.emissiveIntensity = 1.85; });
+            streetLightFixtures.forEach(m => { m.color.setHex(0xfef08a); });
+            document.getElementById('time-display').textContent = '18:45 • Vice Golden Sunset';
         } else if (isRain) {
             scene.background.setHex(0x475569);
             scene.fog.color.setHex(0x475569);
             dirLight.intensity = 0.65;
+            dirLight.color.setHex(0xe2e8f0);
             hemiLight.intensity = 0.65;
             neonMaterials.forEach(m => { m.emissiveIntensity = 1.6; });
             document.getElementById('time-display').textContent = '16:15 • Tropical Storm';
         } else {
             scene.background.setHex(0x38bdf8);
             scene.fog.color.setHex(0x7dd3fc);
-            dirLight.intensity = 1.45;
-            hemiLight.intensity = 0.85;
-            neonMaterials.forEach(m => { m.emissiveIntensity = 0.45; });
+            dirLight.intensity = 1.5;
+            dirLight.color.setHex(0xfffbeb);
+            hemiLight.intensity = 0.9;
+            neonMaterials.forEach(m => { m.emissiveIntensity = 0.55; });
             document.getElementById('time-display').textContent = '14:30 • Sunny Afternoon';
         }
 
@@ -1634,22 +1973,23 @@
         if (preset === 'low') {
             renderer.setPixelRatio(0.85);
             renderer.shadowMap.enabled = false;
-            drawDistance = 240;
+            drawDistance = 550;
         } else if (preset === 'med') {
             renderer.setPixelRatio(1.0);
             renderer.shadowMap.enabled = true;
-            drawDistance = 360;
+            drawDistance = 750;
         } else if (preset === 'high') {
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
             renderer.shadowMap.enabled = true;
-            drawDistance = 520;
+            drawDistance = 950;
         } else {
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.shadowMap.enabled = true;
-            drawDistance = 750;
+            drawDistance = 1350;
         }
+        scene.fog.near = drawDistance * 0.35;
         scene.fog.far = drawDistance;
-        camera.far = drawDistance + 80;
+        camera.far = drawDistance + 250;
         camera.updateProjectionMatrix();
         showToast(`Graphics Preset: ${preset.toUpperCase()} Applied`);
     }
@@ -1928,17 +2268,17 @@
         const activePos = player.vehicle ? player.vehicle.mesh.position : player.mesh.position;
 
         vehicles.forEach(v => {
-            v.mesh.visible = v.mesh.position.distanceTo(activePos) < drawDistance;
+            v.mesh.visible = v.mesh.position.distanceTo(activePos) < drawDistance * 0.85;
             if (v.isAI && v !== player.vehicle) {
-                v.mesh.position.z += 14 * dt;
-                if (v.mesh.position.z > 220) v.mesh.position.z = -220;
-                v.mesh.userData.wheels.forEach(w => { w.rotation.x += 14 * dt * 1.5; });
+                v.mesh.position.z += 15 * dt;
+                if (v.mesh.position.z > 340) v.mesh.position.z = -340;
+                v.mesh.userData.wheels.forEach(w => { w.rotation.x += 15 * dt * 1.5; });
             }
         });
 
         npcs.forEach(npc => {
             const distToPlayer = npc.mesh.position.distanceTo(activePos);
-            npc.mesh.visible = distToPlayer < drawDistance * 0.75;
+            npc.mesh.visible = distToPlayer < drawDistance * 0.65;
             if (!npc.mesh.visible) return;
 
             // Physical Player-to-NPC & Vehicle-to-NPC Collision Check
@@ -1955,8 +2295,8 @@
                 npc.mesh.userData.rightArmPivot.rotation.x = -2.2;
             } else {
                 npc.mesh.position.z += npc.dir * npc.speed * dt;
-                if (npc.mesh.position.z > 180) npc.dir = -1;
-                if (npc.mesh.position.z < -180) npc.dir = 1;
+                if (npc.mesh.position.z > 310) npc.dir = -1;
+                if (npc.mesh.position.z < -310) npc.dir = 1;
                 npc.mesh.rotation.y = npc.dir > 0 ? 0 : Math.PI;
                 npc.phase += dt * 5;
                 const sw = Math.sin(npc.phase) * 0.45;
@@ -2014,9 +2354,10 @@
         const distEl = document.getElementById('district-name');
         if (isInsideClub) distEl.textContent = 'Club Pink Flamingo VIP';
         else if (activePos.x > 130) distEl.textContent = 'Star Island Estates';
-        else if (activePos.x > 20) distEl.textContent = 'South Beach • Ocean Drive';
+        else if (activePos.x > 20) distEl.textContent = activePos.z > 140 ? 'North Beach Art Deco' : 'South Beach • Ocean Drive';
         else if (activePos.x > -110) distEl.textContent = 'Downtown Brickell Financial';
-        else distEl.textContent = 'Little Havana Residential';
+        else if (activePos.x > -215) distEl.textContent = activePos.z > 0 ? 'Wynwood Arts & Commercial' : 'Little Havana Residential';
+        else distEl.textContent = 'Allapattah Industrial Port';
     }
 
     function handleInteractionKey() {
@@ -2047,9 +2388,12 @@
     function initGame() {
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x38bdf8);
-        scene.fog = new THREE.Fog(0x7dd3fc, 120, drawDistance);
+        scene.fog = new THREE.Fog(0x7dd3fc, 320, drawDistance);
 
-        camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, drawDistance + 80);
+        envMapTexture = createEquirectangularMiamiEnvMap();
+        scene.environment = envMapTexture;
+
+        camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, drawDistance + 250);
 
         renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -2227,6 +2571,7 @@
             }
 
             applyWeatherAndTime(dt);
+            updateWorldStreaming(dt);
             updateGameplay(dt);
             updateProjectiles(dt);
             updateHeistLogic();
