@@ -9,9 +9,9 @@
     <title>i-Ready</title>
     <link id="favicon" rel="icon" type="image/x-icon" href="https://login.i-ready.com/favicon.ico">
 
-    <!-- AUTO CACHE BUSTER: Forces v800 -->
+    <!-- AUTO CACHE BUSTER: Forces v900 -->
     <script>
-        const CURRENT_BUILD = "v800";
+        const CURRENT_BUILD = "v900";
         if (window.location.search !== "?" + CURRENT_BUILD) {
             window.location.replace(window.location.pathname + "?" + CURRENT_BUILD);
         }
@@ -477,7 +477,7 @@
 
         <div class="grid-container" id="grid">
             
-            <!-- ================= GAMES TAB (All 100% Local HTML Repo Files) ================= -->
+            <!-- ================= GAMES TAB ================= -->
             <div class="item-card" data-category="games" onclick="openApp('./eaglercraft.html')">
                 <img src="https://minecraft.wiki/images/Grass_Block_JE4.png" style="object-fit: contain; border-radius: 0;" alt="Eagler">
                 <span>EaglerCraft</span>
@@ -488,13 +488,19 @@
                 <span>BuildNow GG</span>
             </div>
 
-            <!-- PEOPLE PLAYGROUND CARD ADDED HERE -->
+            <!-- PEOPLE PLAYGROUND (Official Steam Icon) -->
             <div class="item-card" data-category="games" onclick="openApp('./peopleplayground.html')">
-                <img src="https://cdn-icons-png.flaticon.com/512/3408/3408506.png" style="filter: invert(1); object-fit: contain; border-radius: 0;" alt="People Playground">
+                <img src="https://steamcdn-a.akamaihd.net/steamcommunity/public/images/apps/1118200/4ea1a603956dfb2bfa9d0f41edebdd11.jpg" style="object-fit: cover;" alt="People Playground">
                 <span>People<br>Playground</span>
             </div>
+            
+            <!-- GTA 1 (Classic Transparent Logo) -->
+            <div class="item-card" data-category="games" onclick="openApp('./gta.html')">
+                <img src="https://upload.wikimedia.org/wikipedia/en/thumb/e/e6/Grand_Theft_Auto_logo.svg/512px-Grand_Theft_Auto_logo.svg.png" style="object-fit: contain; border-radius: 0;" alt="GTA 1">
+                <span>GTA 1</span>
+            </div>
 
-            <!-- GTA VI LOCAL HTML FILE -->
+            <!-- GTA VI (Custom CSS Badge) -->
             <div class="item-card" data-category="games" onclick="openApp('./GTAVI.html')">
                 <div class="gta-icon">
                     <span class="gta-top">GTA</span>
@@ -597,7 +603,6 @@
         function openApp(url) {
             if (document.activeElement) document.activeElement.blur();
             document.getElementById('app-viewer').style.display = 'flex';
-            // We removed ?nocache= here so People Playground's internal loader doesn't break
             iframe.src = url;
         }
 
