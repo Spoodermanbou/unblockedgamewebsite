@@ -9,9 +9,9 @@
     <title>i-Ready</title>
     <link id="favicon" rel="icon" type="image/x-icon" href="https://login.i-ready.com/favicon.ico">
 
-    <!-- AUTO CACHE BUSTER: Forces v700 -->
+    <!-- AUTO CACHE BUSTER: Forces v800 -->
     <script>
-        const CURRENT_BUILD = "v700";
+        const CURRENT_BUILD = "v800";
         if (window.location.search !== "?" + CURRENT_BUILD) {
             window.location.replace(window.location.pathname + "?" + CURRENT_BUILD);
         }
@@ -279,6 +279,7 @@
             font-weight: 700;
             color: #e4e4e7;
             letter-spacing: 0.4px;
+            text-align: center;
         }
 
         /* --- Custom Neon GTA VI Badge Icon --- */
@@ -476,7 +477,7 @@
 
         <div class="grid-container" id="grid">
             
-            <!-- ================= GAMES TAB (100% Local HTML Repo Files) ================= -->
+            <!-- ================= GAMES TAB (All 100% Local HTML Repo Files) ================= -->
             <div class="item-card" data-category="games" onclick="openApp('./eaglercraft.html')">
                 <img src="https://minecraft.wiki/images/Grass_Block_JE4.png" style="object-fit: contain; border-radius: 0;" alt="Eagler">
                 <span>EaglerCraft</span>
@@ -487,7 +488,13 @@
                 <span>BuildNow GG</span>
             </div>
 
-            <!-- GTA VI LOCAL HTML FILE (Exact Case Match: ./GTAVI.html) -->
+            <!-- PEOPLE PLAYGROUND CARD ADDED HERE -->
+            <div class="item-card" data-category="games" onclick="openApp('./peopleplayground.html')">
+                <img src="https://cdn-icons-png.flaticon.com/512/3408/3408506.png" style="filter: invert(1); object-fit: contain; border-radius: 0;" alt="People Playground">
+                <span>People<br>Playground</span>
+            </div>
+
+            <!-- GTA VI LOCAL HTML FILE -->
             <div class="item-card" data-category="games" onclick="openApp('./GTAVI.html')">
                 <div class="gta-icon">
                     <span class="gta-top">GTA</span>
@@ -590,8 +597,8 @@
         function openApp(url) {
             if (document.activeElement) document.activeElement.blur();
             document.getElementById('app-viewer').style.display = 'flex';
-            const sep = url.includes('?') ? '&' : '?';
-            iframe.src = url + sep + 'nocache=' + Date.now();
+            // We removed ?nocache= here so People Playground's internal loader doesn't break
+            iframe.src = url;
         }
 
         function promptCustomLink() {
