@@ -32,16 +32,22 @@
             transform: translate(-50%, -50%);
             text-align: center;
             z-index: 10;
-            width: 340px;
+            width: 380px;
             pointer-events: none;
         }
         #loading-text {
             color: #00ff88;
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 800;
             letter-spacing: 1px;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
             text-shadow: 0 0 10px rgba(0, 255, 136, 0.4);
+        }
+        #sub-status {
+            color: #888;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 12px;
         }
         .bar-bg {
             width: 100%;
@@ -55,13 +61,14 @@
             width: 0%;
             height: 100%;
             background: #00ff88;
-            transition: width 0.15s ease;
+            transition: width 0.1s linear;
         }
     </style>
 </head>
 <body>
     <div id="loader-ui">
-        <div id="loading-text">LOADING PEOPLE PLAYGROUND (0/9)...</div>
+        <div id="loading-text">CONNECTING TO CDN...</div>
+        <div id="sub-status">0.0 MB downloaded (Chunk 0/9)</div>
         <div class="bar-bg"><div id="bar-fill"></div></div>
     </div>
 
@@ -71,47 +78,155 @@
 
     <script>
         const loadingText = document.getElementById("loading-text");
+        const subStatus = document.getElementById("sub-status");
         const barFill = document.getElementById("bar-fill");
         const loaderUi = document.getElementById("loader-ui");
         const canvas = document.getElementById("unity-canvas");
 
-        const cdnBase = "https://cdn.jsdelivr.net/gh/genizy/web-port@main/people-playground/";
-        let loadedChunks = 0;
-        const totalChunks = 9; // 3 WASM parts + 6 DATA parts
+        // Primary and Backup CDN Mirrors in case one is throttled
+        const MIRRORS = [
+            "https://cdn.jsdelivr.net/gh/genizy/web-port@main/people-playground/",
+            "https://cdn.jsdelivr.net/gh/bubbls/ugss@main/people-playground/",
+            "https://raw.githubusercontent.com/genizy/web-port/main/people-playground/"
+        ];
+
+        let activeBase = MIRRORS[0];
+        let completedChunks = 0;
+        let totalBytesLoaded = 0;
+        const totalChunks = 9;
 
         function getParts(file, start, end) {
             const parts = [];
             for (let i = start; i <= end; i++) {
-                parts.push(cdnBase + file + ".part" + i);
+                parts.push(file + ".part" + i);
             }
             return parts;
         }
 
+        // Streams each part and updates the MB counter live so it never looks frozen
+        async function fetchPartWithLiveProgress(relativePath) {
+            let lastErr = null;
+            for (const mirror of MIRRORS) {
+                try {
+                    const response = await fetch(mirror + relativePath);
+                    if (!response.ok) throw new Error("HTTP " + response.status);
+                    activeBase = mirror;
+
+                    if (!response.body) {
+                        const buf = await response.arrayBuffer();
+                        totalBytesLoaded += buf.byteLength;
+                        completedChunks++;
+                        return buf;
+                    }
+
+                    const reader = response.body.getReader();
+                    const chunks = [];
+                    let receivedLength = 0;
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        chunks.push(value);
+                        receivedLength += value.length;
+                        totalBytesLoaded += value.length;
+
+                        const mb = (totalBytesLoaded / (1024 * 1024)).toFixed(1);
+                        loadingText.innerText = `DOWNLOADING PEOPLE PLAYGROUND...`;
+                        subStatus.innerText = `${mb} MB downloaded (Chunk ${completedChunks + 1}/${totalChunks})`;
+                        const approxPct = Math.min(85, Math.round((totalBytesLoaded / (145 * 1024 * 1024)) * 85));
+                        barFill.style.width = approxPct + "%";
+                    }
+
+                    const combined = new Uint8Array(receivedLength);
+                    let position = 0;
+                    for (const chunk of chunks) {
+                        combined.set(chunk, position);
+                        position += chunk.length;
+                    }
+
+                    completedChunks++;
+                    return combined.buffer;
+                } catch (err) {
+                    lastErr = err;
+                }
+            }
+            throw lastErr || new Error("All mirrors failed for " + relativePath);
+        }
+
         async function mergeFiles(fileParts) {
             const buffers = [];
-            for (const partUrl of fileParts) {
-                const res = await fetch(partUrl);
-                if (!res.ok) throw new Error("Failed to load " + partUrl);
-                const buf = await res.arrayBuffer();
+            for (const part of fileParts) {
+                const buf = await fetchPartWithLiveProgress(part);
                 buffers.push(buf);
-                loadedChunks++;
-                const pct = Math.round((loadedChunks / totalChunks) * 80);
-                loadingText.innerText = `DOWNLOADING ASSETS (${loadedChunks}/${totalChunks})...`;
-                barFill.style.width = pct + "%";
             }
             const mergedBlob = new Blob(buffers, { type: "application/octet-stream" });
             return URL.createObjectURL(mergedBlob);
         }
 
-        async function bootPeoplePlayground() {
+        async function bootGame() {
             try {
-                const [wasmUrl, dataUrl] = await Promise.all([
-                    mergeFiles(getParts("Build/PPG.wasm", 1, 3)),
-                    mergeFiles(getParts("Build/PPG.data", 1, 6))
-                ]);
+                // Downloads WASM (3 parts) then DATA (6 parts) with live MB counter
+                const wasmUrl = await mergeFiles(getParts("Build/PPG.wasm", 1, 3));
+                const dataUrl = await mergeFiles(getParts("Build/PPG.data", 1, 6));
 
-                const buildUrl = cdnBase + "Build";
-                const loaderUrl = buildUrl + "/PPG.loader.js";
+                // Hooks fetch & XHR so Unity loads the merged RAM Blobs cleanly
+                const origFetch = window.fetch;
+                window.fetch = function(input, init) {
+                    if (typeof input === "string") {
+                        if (input.includes("PPG.wasm")) return origFetch(wasmUrl, init);
+                        if (input.includes("PPG.data")) return origFetch(dataUrl, init);
+                    }
+                    return origFetch(input, init);
+                };
+
+                const origOpen = XMLHttpRequest.prototype.open;
+                XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+                    if (typeof url === "string") {
+                        if (url.includes("PPG.wasm")) url = wasmUrl;
+                        if (url.includes("PPG.data")) url = dataUrl;
+                    }
+                    return origOpen.call(this, method, url, ...rest);
+                };
+
+                const buildUrl = activeBase + "Build";
                 const config = {
                     dataUrl: dataUrl,
-                    frameworkUrl: buildUrl + "/PPG.framework.js
+                    frameworkUrl: buildUrl + "/PPG.framework.js",
+                    codeUrl: wasmUrl,
+                    streamingAssetsUrl: activeBase + "StreamingAssets",
+                    companyName: "Studio Minus",
+                    productName: "People Playground",
+                    productVersion: "1.0"
+                };
+
+                loadingText.innerText = "STARTING UNITY ENGINE...";
+                const script = document.createElement("script");
+                script.src = buildUrl + "/PPG.loader.js";
+                script.onload = () => {
+                    createUnityInstance(canvas, config, (progress) => {
+                        const totalPct = 85 + Math.round(progress * 15);
+                        loadingText.innerText = "BOOTING ENGINE... " + Math.round(progress * 100) + "%";
+                        barFill.style.width = totalPct + "%";
+                    }).then(() => {
+                        loaderUi.style.display = "none";
+                        canvas.focus();
+                    }).catch((err) => {
+                        loadingText.innerText = "ENGINE ERROR";
+                        subStatus.innerText = String(err);
+                    });
+                };
+                script.onerror = () => {
+                    loadingText.innerText = "FAILED TO LOAD PPG.loader.js";
+                };
+                document.body.appendChild(script);
+
+            } catch (err) {
+                loadingText.innerText = "DOWNLOAD BLOCKED OR FAILED";
+                subStatus.innerText = err.message;
+            }
+        }
+
+        bootGame();
+    </script>
+</body>
+</html>
