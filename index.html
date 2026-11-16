@@ -9,9 +9,9 @@
     <title>i-Ready</title>
     <link id="favicon" rel="icon" type="image/x-icon" href="https://login.i-ready.com/favicon.ico">
 
-    <!-- AUTO CACHE BUSTER: Forces v900 -->
+    <!-- AUTO CACHE BUSTER: Forces v1000 -->
     <script>
-        const CURRENT_BUILD = "v900";
+        const CURRENT_BUILD = "v1000";
         if (window.location.search !== "?" + CURRENT_BUILD) {
             window.location.replace(window.location.pathname + "?" + CURRENT_BUILD);
         }
@@ -488,15 +488,15 @@
                 <span>BuildNow GG</span>
             </div>
 
-            <!-- PEOPLE PLAYGROUND (Official Steam Icon) -->
+            <!-- PEOPLE PLAYGROUND (Using Cloudflare's direct Steam CDN proxy) -->
             <div class="item-card" data-category="games" onclick="openApp('./peopleplayground.html')">
-                <img src="https://steamcdn-a.akamaihd.net/steamcommunity/public/images/apps/1118200/4ea1a603956dfb2bfa9d0f41edebdd11.jpg" style="object-fit: cover;" alt="People Playground">
+                <img src="https://cdn.cloudflare.steamstatic.com/steam/apps/1118200/header.jpg" style="object-fit: cover;" alt="People Playground">
                 <span>People<br>Playground</span>
             </div>
             
-            <!-- GTA 1 (Classic Transparent Logo) -->
+            <!-- GTA 1 (Using Wikimedia Commons Image that doesn't block hotlinking) -->
             <div class="item-card" data-category="games" onclick="openApp('./gta.html')">
-                <img src="https://upload.wikimedia.org/wikipedia/en/thumb/e/e6/Grand_Theft_Auto_logo.svg/512px-Grand_Theft_Auto_logo.svg.png" style="object-fit: contain; border-radius: 0;" alt="GTA 1">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e6/Grand_Theft_Auto_logo.svg/512px-Grand_Theft_Auto_logo.svg.png" style="object-fit: contain; border-radius: 0;" alt="GTA 1">
                 <span>GTA 1</span>
             </div>
 
