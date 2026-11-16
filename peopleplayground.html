@@ -83,7 +83,6 @@
         const loaderUi = document.getElementById("loader-ui");
         const canvas = document.getElementById("unity-canvas");
 
-        // Primary and Backup CDN Mirrors in case one is throttled
         const MIRRORS = [
             "https://cdn.jsdelivr.net/gh/genizy/web-port@main/people-playground/",
             "https://cdn.jsdelivr.net/gh/bubbls/ugss@main/people-playground/",
@@ -103,7 +102,20 @@
             return parts;
         }
 
-        // Streams each part and updates the MB counter live so it never looks frozen
+        // Fetches JS files as text and wraps them in a local application/javascript Blob to bypass Chrome's text/plain block
+        async function fetchScriptAsBlobUrl(relativePath) {
+            for (const mirror of MIRRORS) {
+                try {
+                    const res = await fetch(mirror + relativePath);
+                    if (!res.ok) continue;
+                    const jsText = await res.text();
+                    const jsBlob = new Blob([jsText], { type: "application/javascript" });
+                    return URL.createObjectURL(jsBlob);
+                } catch (e) {}
+            }
+            throw new Error("Could not fetch script: " + relativePath);
+        }
+
         async function fetchPartWithLiveProgress(relativePath) {
             let lastErr = null;
             for (const mirror of MIRRORS) {
@@ -131,9 +143,9 @@
                         totalBytesLoaded += value.length;
 
                         const mb = (totalBytesLoaded / (1024 * 1024)).toFixed(1);
-                        loadingText.innerText = `DOWNLOADING PEOPLE PLAYGROUND...`;
+                        loadingText.innerText = "DOWNLOADING PEOPLE PLAYGROUND...";
                         subStatus.innerText = `${mb} MB downloaded (Chunk ${completedChunks + 1}/${totalChunks})`;
-                        const approxPct = Math.min(85, Math.round((totalBytesLoaded / (145 * 1024 * 1024)) * 85));
+                        const approxPct = Math.min(82, Math.round((totalBytesLoaded / (156 * 1024 * 1024)) * 82));
                         barFill.style.width = approxPct + "%";
                     }
 
@@ -165,16 +177,24 @@
 
         async function bootGame() {
             try {
-                // Downloads WASM (3 parts) then DATA (6 parts) with live MB counter
                 const wasmUrl = await mergeFiles(getParts("Build/PPG.wasm", 1, 3));
                 const dataUrl = await mergeFiles(getParts("Build/PPG.data", 1, 6));
 
-                // Hooks fetch & XHR so Unity loads the merged RAM Blobs cleanly
+                loadingText.innerText = "LOADING UNITY SCRIPTS...";
+                subStatus.innerText = "Creating local JS execution blobs...";
+                barFill.style.width = "85%";
+
+                const [loaderBlobUrl, frameworkBlobUrl] = await Promise.all([
+                    fetchScriptAsBlobUrl("Build/PPG.loader.js"),
+                    fetchScriptAsBlobUrl("Build/PPG.framework.js")
+                ]);
+
                 const origFetch = window.fetch;
                 window.fetch = function(input, init) {
                     if (typeof input === "string") {
                         if (input.includes("PPG.wasm")) return origFetch(wasmUrl, init);
                         if (input.includes("PPG.data")) return origFetch(dataUrl, init);
+                        if (input.includes("PPG.framework.js")) return origFetch(frameworkBlobUrl, init);
                     }
                     return origFetch(input, init);
                 };
@@ -184,14 +204,14 @@
                     if (typeof url === "string") {
                         if (url.includes("PPG.wasm")) url = wasmUrl;
                         if (url.includes("PPG.data")) url = dataUrl;
+                        if (url.includes("PPG.framework.js")) url = frameworkBlobUrl;
                     }
                     return origOpen.call(this, method, url, ...rest);
                 };
 
-                const buildUrl = activeBase + "Build";
                 const config = {
                     dataUrl: dataUrl,
-                    frameworkUrl: buildUrl + "/PPG.framework.js",
+                    frameworkUrl: frameworkBlobUrl,
                     codeUrl: wasmUrl,
                     streamingAssetsUrl: activeBase + "StreamingAssets",
                     companyName: "Studio Minus",
@@ -199,13 +219,13 @@
                     productVersion: "1.0"
                 };
 
-                loadingText.innerText = "STARTING UNITY ENGINE...";
                 const script = document.createElement("script");
-                script.src = buildUrl + "/PPG.loader.js";
+                script.src = loaderBlobUrl;
                 script.onload = () => {
                     createUnityInstance(canvas, config, (progress) => {
                         const totalPct = 85 + Math.round(progress * 15);
                         loadingText.innerText = "BOOTING ENGINE... " + Math.round(progress * 100) + "%";
+                        subStatus.innerText = "Initializing physics & ragdoll assets...";
                         barFill.style.width = totalPct + "%";
                     }).then(() => {
                         loaderUi.style.display = "none";
@@ -215,8 +235,9 @@
                         subStatus.innerText = String(err);
                     });
                 };
-                script.onerror = () => {
-                    loadingText.innerText = "FAILED TO LOAD PPG.loader.js";
+                script.onerror = (e) => {
+                    loadingText.innerText = "SCRIPT BLOB ERROR";
+                    subStatus.innerText = "Could not execute PPG.loader.js blob.";
                 };
                 document.body.appendChild(script);
 
