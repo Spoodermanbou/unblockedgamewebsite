@@ -4,33 +4,17 @@
     <meta charset="utf-8">
     <title>GTA Advance</title>
     <style>
-        body, html { 
-            margin: 0; 
-            padding: 0; 
-            width: 100vw; 
-            height: 100vh; 
-            background: #0b0b0c; 
-            overflow: hidden; 
-        }
+        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #0b0b0c; overflow: hidden; }
     </style>
 </head>
 <body>
-    <!-- The container where the emulator will load -->
     <div style="width: 100%; height: 100%; max-width: 100%;">
         <div id="game"></div>
     </div>
-
     <script>
-        // EmulatorJS Configuration
         EJS_player = '#game';
-        
-        // Tells the emulator to use the Game Boy Advance engine
         EJS_core = 'gba'; 
-        
-        // Link to the real GTA game file (hosted safely on the Internet Archive)
         EJS_gameUrl = 'https://archive.org/download/grand-theft-auto-advance-usa/Grand%20Theft%20Auto%20Advance%20%28USA%29.gba';
-        
-        // Points to the unblockable CDN hosting the emulator engine files
         EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
     </script>
     <script src="https://cdn.emulatorjs.org/stable/data/loader.js"></script>
