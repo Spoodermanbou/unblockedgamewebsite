@@ -14,7 +14,10 @@
     <script>
         EJS_player = '#game';
         EJS_core = 'gba'; 
-        EJS_gameUrl = 'https://archive.org/download/grand-theft-auto-advance-usa/Grand%20Theft%20Auto%20Advance%20%28USA%29.gba';
+        
+        // THIS LINE IS THE FIX: Points to your local file
+        EJS_gameUrl = './gta.gba';
+        
         EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
     </script>
     <script src="https://cdn.emulatorjs.org/stable/data/loader.js"></script>
