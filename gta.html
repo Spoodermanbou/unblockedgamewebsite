@@ -14,12 +14,12 @@
     <script>
         EJS_player = '#game';
         EJS_core = 'gba'; 
-        
-        // THIS LINE IS THE FIX: Points to your local file
         EJS_gameUrl = './gta.gba';
         
-        EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
+        // Bounces the engine request through jsDelivr's unblocked GitHub mirror
+        EJS_pathtodata = 'https://cdn.jsdelivr.net/gh/EmulatorJS/EmulatorJS@main/data/';
     </script>
+    <script src="https://cdn.jsdelivr.net/gh/EmulatorJS/EmulatorJS@main/data/loader.js"></script>
     <script src="https://cdn.emulatorjs.org/stable/data/loader.js"></script>
 </body>
 </html>
