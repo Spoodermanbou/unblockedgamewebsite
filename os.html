@@ -257,56 +257,120 @@
         </div>
     </div>
 
-    <script>
-        // Tab switching logic
-        function switchTab(tabName) {
-            const gamesBtn = document.getElementById('btn-games');
-            const appsBtn = document.getElementById('btn-apps');
-            const cards = document.querySelectorAll('.item-card');
+   <script>
+    // Tab switching logic
+    function switchTab(tabName) {
+        const gamesBtn = document.getElementById('btn-games');
+        const appsBtn = document.getElementById('btn-apps');
+        const cards = document.querySelectorAll('.item-card');
 
-            if (tabName === 'games') {
-                gamesBtn.classList.add('active');
-                appsBtn.classList.remove('active');
-                cards.forEach(card => {
-                    if (card.getAttribute('data-category') === 'games') card.style.display = 'flex';
-                    else card.style.display = 'none';
-                });
-            } else {
-                appsBtn.classList.add('active');
-                gamesBtn.classList.remove('active');
-                cards.forEach(card => {
-                    if (card.getAttribute('data-category') === 'apps') card.style.display = 'flex';
-                    else card.style.display = 'none';
-                });
-            }
-            // Clear the search bar when switching tabs
-            document.getElementById('searchInput').value = '';
-        }
-
-        // Search filtering logic
-        function filterItems() {
-            const input = document.getElementById('searchInput').value.toLowerCase();
-            const cards = document.querySelectorAll('.item-card');
-            const activeTab = document.getElementById('btn-games').classList.contains('active') ? 'games' : 'apps';
-
+        if (tabName === 'games') {
+            gamesBtn.classList.add('active');
+            appsBtn.classList.remove('active');
             cards.forEach(card => {
-                const title = card.querySelector('span').innerText.toLowerCase();
-                const category = card.getAttribute('data-category');
-                
-                if (category === activeTab) {
-                    if (title.includes(input)) {
-                        card.style.display = 'flex';
-                    } else {
-                        card.style.display = 'none';
-                    }
-                }
+                if (card.getAttribute('data-category') === 'games') card.style.display = 'flex';
+                else card.style.display = 'none';
+            });
+        } else {
+            appsBtn.classList.add('active');
+            gamesBtn.classList.remove('active');
+            cards.forEach(card => {
+                if (card.getAttribute('data-category') === 'apps') card.style.display = 'flex';
+                else card.style.display = 'none';
             });
         }
+        document.getElementById('searchInput').value = '';
+    }
 
-        // Open app logic
-        function openApp(url) {
-            window.location.href = url;
-        }
-    </script>
+    // Search filtering logic
+    function filterItems() {
+        const input = document.getElementById('searchInput').value.toLowerCase();
+        const cards = document.querySelectorAll('.item-card');
+        const activeTab = document.getElementById('btn-games').classList.contains('active') ? 'games' : 'apps';
+
+        cards.forEach(card => {
+            const title = card.querySelector('span').innerText.toLowerCase();
+            const category = card.getAttribute('data-category');
+            
+            if (category === activeTab) {
+                if (title.includes(input)) card.style.display = 'flex';
+                else card.style.display = 'none';
+            }
+        });
+    }
+
+    // Open app logic with Top Bar overlay
+    function openApp(url) {
+        // Create fullscreen overlay
+        const overlay = document.createElement('div');
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100vw';
+        overlay.style.height = '100vh';
+        overlay.style.backgroundColor = '#000';
+        overlay.style.zIndex = '99999';
+
+        // Create Top Bar
+        const topBar = document.createElement('div');
+        topBar.style.position = 'absolute';
+        topBar.style.top = '0';
+        topBar.style.left = '0';
+        topBar.style.width = '100%';
+        topBar.style.height = '40px';
+        topBar.style.backgroundColor = '#1a1a1c';
+        topBar.style.display = 'flex';
+        topBar.style.alignItems = 'center';
+        topBar.style.padding = '0 15px';
+        topBar.style.boxSizing = 'border-box';
+        topBar.style.gap = '10px';
+        topBar.style.zIndex = '100000';
+        topBar.style.borderBottom = '1px solid #333';
+
+        // Back Button
+        const backBtn = document.createElement('button');
+        backBtn.innerHTML = '← Back';
+        backBtn.style.background = '#2a2a2d';
+        backBtn.style.color = '#fff';
+        backBtn.style.border = '1px solid #444';
+        backBtn.style.padding = '6px 12px';
+        backBtn.style.borderRadius = '6px';
+        backBtn.style.cursor = 'pointer';
+        backBtn.onclick = () => document.body.removeChild(overlay);
+
+        // Fullscreen Button
+        const fsBtn = document.createElement('button');
+        fsBtn.innerHTML = '⛶ Fullscreen';
+        fsBtn.style.background = '#2a2a2d';
+        fsBtn.style.color = '#fff';
+        fsBtn.style.border = '1px solid #444';
+        fsBtn.style.padding = '6px 12px';
+        fsBtn.style.borderRadius = '6px';
+        fsBtn.style.cursor = 'pointer';
+        fsBtn.onclick = () => {
+            if (!document.fullscreenElement) {
+                overlay.requestFullscreen().catch(err => console.log(err));
+            } else {
+                document.exitFullscreen();
+            }
+        };
+
+        topBar.appendChild(backBtn);
+        topBar.appendChild(fsBtn);
+
+        // Create Iframe for the game
+        const iframe = document.createElement('iframe');
+        iframe.src = url;
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+        iframe.style.border = 'none';
+        iframe.style.paddingTop = '40px'; // Pushes game down so bar doesn't cover it
+        iframe.style.boxSizing = 'border-box';
+
+        overlay.appendChild(topBar);
+        overlay.appendChild(iframe);
+        document.body.appendChild(overlay);
+    }
+</script>
 </body>
 </html>
