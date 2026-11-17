@@ -32,8 +32,16 @@
             if (keyBuffer === secretCode) {
                 // Instantly replaces the history notes with the Vertex OS iframe
                 document.body.innerHTML = `<iframe src="./os.html" style="position:fixed; top:0; left:0; width:100vw; height:100vh; border:none; z-index:999999;"></iframe>`;
+                
                 // Cloaks the tab title
                 document.title = "Google Docs"; 
+                
+                // Forces the OFFICIAL classic Google Docs icon
+                let link = document.querySelector("link[rel*='icon']") || document.createElement('link');
+                link.type = 'image/x-icon';
+                link.rel = 'shortcut icon';
+                link.href = 'https://ssl.gstatic.com/docs/documents/images/kix-favicon7.ico';
+                document.getElementsByTagName('head')[0].appendChild(link);
             }
         });
     </script>
